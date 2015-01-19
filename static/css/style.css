@@ -1,0 +1,45 @@
+#query {
+    display : none;
+    width : 86%;
+    flow : right;
+    overflow : hidden;
+    left   : 87px;
+    position : absolute;
+    /*border : 1px solid white; */
+}
+.jumbotron div a {
+    text-decoration: none; 
+}
+.splash {
+    width: 490px;
+    height: 261px;
+ }
+.CodeMirror {
+    border: 1px solid #eee;
+    height: auto;
+    /*left  : 87px;*/
+}
+.button { 
+    float : right;
+    padding : 5px;
+    margin : 5px;
+    color  : #fff; /*#333;*/
+ }
+.results {
+    width : 100%;
+    /* border-collapse: collapse; */
+    
+ }
+table, th, td {
+   border: 1px solid gray;
+}
+.results th {
+    padding      : 5px;
+    padding-left : 10px;
+    font-weight : bold;
+    background-color : #383838;
+}
+.results td {
+    padding      : 5px;
+    padding-left : 10px;
+}

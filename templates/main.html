@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+
+  <title>EVRYSCOPE Digital Sky Survey</title>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script type="text/javascript" src="{{ url_for('static', filename='js/codemirror.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='codemirror-4.11/mode/sql/sql.js') }}"></script>
+  <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/handlebars-v2.0.0.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='codemirror-4.11/theme/ambiance.css') }}"/>
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/codemirror.css') }}"/>
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}"/>
+<!--
+  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+-->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-slate.min.css') }}">
+
+  <body>
+    <div class="container">
+      <div class="jumbotron">
+        <div>
+          <a href='/'>
+          <h1>EVRYSCOPE</h1>
+          <p>Digital sky survey</p>
+</a>
+        </div>
+        <!--
+        <img class="splash" src="{{ url_for('static', filename='img/evryscope_poster_small.jpg') }}" />
+        -->
+      </div>
+      <div class="row" id="menu">
+        <div class="col-sm-4">
+          <h3 id="search">Search</h3>
+          <p>Search the survey</p>
+        </div>
+        <div class="col-sm-4">
+          <h3>Sky</h3>
+          <p>View images</p>
+        </div>
+        <div class="col-sm-4">
+          <h3>About</h3>
+          <p>Learn about Evryscope</p>
+        </div>
+      </div>
+    </div>
+
+    <script id="entry-template" type="text/x-handlebars-template">
+      {% raw %}
+      <table class='results'>
+        <tr>
+          <th>ID</th>
+          <th>Curve</th>
+        </tr>
+      {{#each curves}}
+        <tr class="entry">
+          <td>{{id}}</td>
+          <td>
+            {{curve}}
+          </td>
+        </tr>
+      {{/each}}
+      </table>
+      {% endraw %}
+    </script>
+
+    <div id="query">
+      <textarea id="querytext">SELECT * FROM light_curves</textarea>
+      <div class="button" id="run">Run</div>
+      <div class="button" id="done">Done</div>
+      <div id="results">
+      </div>
+    </div>
+
+  </body>
+</html>
