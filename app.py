@@ -82,6 +82,10 @@ evryscope=> select * from light_curves;
 
 
 
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO evryscope;
+
+
+
 
 
 FITS to SVG
