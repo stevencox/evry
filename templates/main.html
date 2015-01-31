@@ -6,50 +6,79 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='codemirror-4.11/theme/ambiance.css') }}"/>
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/codemirror.css') }}"/>
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-slate.min.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='js/panojs/styles/panojs.css') }}"/>
+
+  <script type="text/javascript">
+    var EVRY_STATIC_URI = "{{ url_for('static', filename='codemirror-4.11/theme/ambiance.css') }}";
+  </script>
+<!--  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/extjs/ext-core.js') }}"></script>    
+-->
+  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/utils.js') }}"></script>    
+  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/PanoJS.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/controls.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/pyramid_imgcnv.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/control_thumbnail.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/control_info.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/control_svg.js') }}"></script> 
+
   <script type="text/javascript" src="{{ url_for('static', filename='js/codemirror.js') }}"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='codemirror-4.11/mode/sql/sql.js') }}"></script>
   <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='js/handlebars-v2.0.0.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/dygraph-combined-dev.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/graph.js') }}"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='js/app.js') }}"></script>
 
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='codemirror-4.11/theme/ambiance.css') }}"/>
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/codemirror.css') }}"/>
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}"/>
-<!--
-  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
--->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-slate.min.css') }}">
-
   <body>
-    <div class="container">
-      <div class="jumbotron">
-        <div>
-          <a href='/'>
-          <h1>EVRYSCOPE</h1>
-          <p>Digital sky survey</p>
-</a>
-        </div>
-        <!--
-        <img class="splash" src="{{ url_for('static', filename='img/evryscope_poster_small.jpg') }}" />
-        -->
+
+    <nav role="navigation" class="navbar navbar-default" style="margin-bottom : 0px;">
+      <h4 class="title">EVRYSCOPE</h4>
+      <div id="navbarCollapse" class="collapse navbar-collapse navbar-right">
+        <ul class="nav navbar-nav">
+          <li id="home" class="active"><a href="#">Home</a></li>
+          <li><a id="search" href="#">Search</a></li>
+          <li><a id="images" href="#">Images</a></li>
+          <!--
+          <li><a id="graph" href="#">Graphs</a></li>
+          -->
+          <li><a id="about" href="http://evryscope.astro.unc.edu/" target="evryscope">About</a></li>
+        </ul>
       </div>
-      <div class="row" id="menu">
-        <div class="col-sm-4">
-          <h3 id="search">Search</h3>
-          <p>Search the survey</p>
-        </div>
-        <div class="col-sm-4">
-          <h3>Sky</h3>
-          <p>View images</p>
-        </div>
-        <div class="col-sm-4">
-          <h3>About</h3>
-          <p>Learn about Evryscope</p>
-        </div>
-      </div>
+    </nav>
+    <div id="container">
     </div>
 
-    <script id="entry-template" type="text/x-handlebars-template">
+    <script id="home-template" type="text/x-handlebars-template">
+      <div class="stars">
+        <div class="splash-title">EVRYSCOPE Digital Sky Survey</div>
+      </div>
+      <div class="overview">
+        The Evryscope (“wide-seer”) is an array of telescopes pointed at every part of the accessible sky
+        simultaneously and continuously, together forming a gigapixel-scale telescope monitoring an
+        overlapping 8,600 square degree field every 2 minutes. Funded by NSF/ATI, deploying to CTIO in 2015.
+        <br/><br/>
+        This application is a prototype to identify key architectural components and approaches 
+        to be used when the instrument begins producing data. 
+      </div>
+    </script>
+
+    <script id="query-template" type="text/x-handlebars-template">
+      <div class="content-wrap">
+        <div id="query">
+        Enter SQL commands to explore the data. Select Run to execute a command.<br/><br/>
+          <textarea id="querytext">SELECT * FROM light_curves</textarea>
+          <div class="button" id="run">Run</div>
+          <div id="results">
+          </div>
+        </div>
+      </div>
+    </script>
+
+    <script id="queryResults-template" type="text/x-handlebars-template">
       {% raw %}
       <table class='results'>
         <tr>
@@ -68,13 +97,28 @@
       {% endraw %}
     </script>
 
-    <div id="query">
-      <textarea id="querytext">SELECT * FROM light_curves</textarea>
-      <div class="button" id="run">Run</div>
-      <div class="button" id="done">Done</div>
-      <div id="results">
+    <script id="images-template" type="text/x-handlebars-template">
+      <div class="viewerContainer">
+        <div id="viewer" class="viewer" style="width:auto; height: 100%;"></div>
       </div>
-    </div>
+      <div id="download">
+        Drag to pan<br/>
+        Keyboard commands: [ -, +, ↑, ↓, →, ← ] <br/>
+        <div><img class="legend" src="http://localhost:5000/static/js/panojs/images/32px_show.png"/> to maximize</div>
+        <div><img class="legend" src="http://localhost:5000/static/js/panojs/images/32px_plus.png"/> to zoom in</div>
+        <div><img class="legend" src="http://localhost:5000/static/js/panojs/images/32px_minus.png"/> to zoom out</div>
+
+        <br/>
+        Download Script
+        <div id="downloadCommand"
+             style="">
+        </div>      
+      </div>
+    </script>
+
+    <script id="graph-template" type="text/x-handlebars-template">
+      <div id="graphCanvas" class="content-wrap"/>
+    </script>
 
   </body>
 </html>

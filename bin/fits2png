@@ -1,0 +1,54 @@
+#!/bin/bash
+
+set -x
+set -e
+
+#
+# Generate tile pyramids for each of a set of FITS files.
+#  stiff to convert fits to tiff
+#  image magick to convert tiff to png
+#  panojs tilemaker.py to create tile pyramid 
+#
+# Should be run from the project's root
+
+# TODO
+# [done] Consolidate used panojs resources into source tree.
+# [done] Fix hard coded paths in fits2png and possibly relocate
+# [done] Make download script get visible tiles
+# [done] Explain download script and viewer in UX
+# checkin
+# deploy
+
+# REF
+# http://docs.geoserver.org/stable/en/user/index.html
+
+dir=$PWD/../evry-meta/fits/1b
+rm -rf $dir/*.png
+for f in $dir/*.fits; do
+    # https://www.astromatic.net/pubsvn/software/stiff/trunk/doc/stiff.pdf
+    stiff $f -OUTFILE_NAME $f.tif
+    # http://www.imagemagick.org/
+    convert $f.tif $f.png
+    identify $f.png
+    rm $f.tif
+    break
+done
+
+cd static/tiles
+for f in $dir/*.png; do
+    prefix=$( basename $f )
+    prefix=$( echo $prefix | sed -e "s,.fits.png,," )
+    mkdir -p $prefix
+    cd $prefix
+    rm -rf *.png
+    python ../../js/panojs/scripts/tilemaker.py \
+        --tile-size=256 \
+        --quality=9 \
+        --template="${prefix}-%d-%d-%d.png" \
+        --background=FFFFFF \
+        --verbose \
+        $f
+    cd ..
+done
+
+exit 0

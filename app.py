@@ -1,4 +1,5 @@
-from flask import Flask, url_for, jsonify, request
+from string import Template
+from flask import Flask, url_for, jsonify, request, make_response
 from flask import render_template
 import psycopg2
 import psycopg2.extras
@@ -50,9 +51,54 @@ def login():
         logger.info ("Returning %s", result)
     return jsonify (**result)
 
+@app.route('/fetchImages', methods=['GET', "POST"])
+def fetchImages ():
+    #images = request.form['images']
+    images = request.args['images']
+    images = images.split (',')
+    url = request.url_root
+    downloadScript = Template ("""
+#/bin/bash
+set -o
+function get_file () {
+    file=$$1
+    fileURI=${url}static/tiles/$${file}
+    echo Downloading $$fileURI
+    wget --quiet --timestamping $$fileURI
+}
+$getCommands
+exit 0
+""")
+
+    getCommands = Template ("""
+get_file $file
+""")
+
+    commands = []
+    for image in images:
+        commands.append (getCommands.substitute ({ "file" : image }))
+    data = downloadScript.substitute ({
+        "url" : url,
+        "getCommands" : '\n'.join (commands)
+    })
+
+    response = make_response(data)
+    response.headers["Content-Disposition"] = "attachment; filename=downloadScript.sh"
+    return response
+    '''
+    return jsonify ({
+        "downloadScript" : downloadScript.substitute ({ "getCommands" : commands })
+    })
+    '''
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    app.run(debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=int("5000"),
+        debug=True
+    )
+    #app.run(debug=True)
 
 
 '''
