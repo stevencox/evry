@@ -5,6 +5,7 @@ import psycopg2
 import psycopg2.extras
 import pprint
 import logging
+import glob
 
 logger = logging.getLogger (__name__)
 
@@ -53,7 +54,7 @@ def login():
 
 @app.route('/fetchImages', methods=['GET', "POST"])
 def fetchImages ():
-    #images = request.form['images']
+    prefix = request.args['prefix']
     images = request.args['images']
     images = images.split (',')
     url = request.url_root
@@ -61,10 +62,10 @@ def fetchImages ():
 #/bin/bash
 set -o
 function get_file () {
-    file=$$1
-    fileURI=${url}static/tiles/$${file}
+    fileId=$$1
+    fileURI=${url}static/tiles/${prefix}/${prefix}-$${fileId}.png
     echo Downloading $$fileURI
-    wget --quiet --timestamping $$fileURI
+    wget --timestamping $$fileURI
 }
 $getCommands
 exit 0
@@ -79,17 +80,20 @@ get_file $file
         commands.append (getCommands.substitute ({ "file" : image }))
     data = downloadScript.substitute ({
         "url" : url,
+        "prefix" : prefix,
         "getCommands" : '\n'.join (commands)
     })
 
     response = make_response(data)
     response.headers["Content-Disposition"] = "attachment; filename=downloadScript.sh"
     return response
-    '''
-    return jsonify ({
-        "downloadScript" : downloadScript.substitute ({ "getCommands" : commands })
+
+@app.route('/listImages', methods=['POST'])
+def listImages():
+    logger.info ("Listing images")    
+    return jsonify ({ 
+        "images" : [ x.split('/')[-1] for x in glob.glob('./static/tiles/img*calib') ]
     })
-    '''
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
@@ -98,7 +102,9 @@ if __name__ == '__main__':
         port=int("5000"),
         debug=True
     )
-    #app.run(debug=True)
+
+
+
 
 
 '''

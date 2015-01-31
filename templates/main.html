@@ -15,8 +15,6 @@
   <script type="text/javascript">
     var EVRY_STATIC_URI = "{{ url_for('static', filename='codemirror-4.11/theme/ambiance.css') }}";
   </script>
-<!--  <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/extjs/ext-core.js') }}"></script>    
--->
   <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/utils.js') }}"></script>    
   <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/PanoJS.js') }}"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/controls.js') }}"></script>
@@ -24,7 +22,6 @@
   <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/control_thumbnail.js') }}"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/control_info.js') }}"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='js/panojs/panojs/control_svg.js') }}"></script> 
-
   <script type="text/javascript" src="{{ url_for('static', filename='js/codemirror.js') }}"></script>
   <script type="text/javascript" src="{{ url_for('static', filename='codemirror-4.11/mode/sql/sql.js') }}"></script>
   <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
@@ -36,7 +33,7 @@
   <body>
 
     <nav role="navigation" class="navbar navbar-default" style="margin-bottom : 0px;">
-      <h4 class="title">EVRYSCOPE</h4>
+      <a href=""> <h4 class="title">EVRYSCOPE</h4> </a>
       <div id="navbarCollapse" class="collapse navbar-collapse navbar-right">
         <ul class="nav navbar-nav">
           <li id="home" class="active"><a href="#">Home</a></li>
@@ -49,6 +46,7 @@
         </ul>
       </div>
     </nav>
+
     <div id="container">
     </div>
 
@@ -99,20 +97,35 @@
 
     <script id="images-template" type="text/x-handlebars-template">
       <div class="viewerContainer">
+        <img id="openImage" src="{{ url_for('static', filename='img/open.png') }}" class="selectImageIcon"/>
         <div id="viewer" class="viewer" style="width:auto; height: 100%;"></div>
       </div>
       <div id="download">
         Drag to pan<br/>
         Keyboard commands: [ -, +, ↑, ↓, →, ← ] <br/>
-        <div><img class="legend" src="http://localhost:5000/static/js/panojs/images/32px_show.png"/> to maximize</div>
-        <div><img class="legend" src="http://localhost:5000/static/js/panojs/images/32px_plus.png"/> to zoom in</div>
-        <div><img class="legend" src="http://localhost:5000/static/js/panojs/images/32px_minus.png"/> to zoom out</div>
-
+        <div><img class="legend" src="{{ url_for('static', filename='js/panojs/images/32px_show.png') }}"/> to maximize</div>
+        <div><img class="legend" src="{{ url_for('static', filename='js/panojs/images/32px_plus.png') }}"/> to zoom in</div>
+        <div><img class="legend" src="{{ url_for('static', filename='js/panojs/images/32px_minus.png') }}"/> to zoom out</div>
         <br/>
         Download Script
-        <div id="downloadCommand"
-             style="">
-        </div>      
+        <div id="downloadCommand"/>
+      </div>
+
+      <div id="#hideModal"></div>
+      <div id="openModal" class="modalDialog">
+        <div>
+	  <a href="#close" title="Close" class="close">X</a>
+	  <h2>Select Image</h2>
+          <div class="selectImage">
+            {% raw %}
+            {{#each images}}
+            <div loc="{{this}}" class="imageName">
+              {{this}}
+            </div>
+            {{/each}}          
+            {% endraw %}
+          </div>
+        </div>
       </div>
     </script>
 
