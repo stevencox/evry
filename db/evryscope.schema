@@ -1,0 +1,88 @@
+--
+-- PostgreSQL database dump
+--
+
+SET statement_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET search_path = public, pg_catalog;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: images; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE images (
+    id integer,
+    path character varying(255)
+);
+
+
+ALTER TABLE public.images OWNER TO postgres;
+
+--
+-- Name: light_curves; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE light_curves (
+    id integer,
+    curve integer[]
+);
+
+
+ALTER TABLE public.light_curves OWNER TO postgres;
+
+--
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+
+--
+-- Name: images; Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON TABLE images FROM PUBLIC;
+REVOKE ALL ON TABLE images FROM postgres;
+GRANT ALL ON TABLE images TO postgres;
+GRANT SELECT ON TABLE images TO evryscope;
+
+
+--
+-- Name: light_curves; Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON TABLE light_curves FROM PUBLIC;
+REVOKE ALL ON TABLE light_curves FROM postgres;
+GRANT ALL ON TABLE light_curves TO postgres;
+GRANT SELECT ON TABLE light_curves TO evryscope;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
