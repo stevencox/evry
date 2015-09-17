@@ -18,10 +18,11 @@ env.user = 'scox'
 env.user = 'evryscope'
 
 root  = "/projects/stars"
+
 stack = "%s/stack" % root
 app   = "%s/app"   % root
 dist  = "%s/dist"  % root
-conf  = "%s/conf"  % root
+conf  = "%s/app/evry/conf" % root
 
 dist_map = {
     'spark'    : 'http://apache.arvixe.com//spark/spark-1.4.1/spark-1.4.1-bin-hadoop2.6.tgz',
@@ -288,6 +289,9 @@ def devstack (mode="install"):
     run('mkdir -p %s' % dist)
     run('mkdir -p %s' % stack)
     run('mkdir -p %s' % app)
+    with cd (dist):
+        run ('wget --timestamping --no-cookies --no-check-certificate --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" "http://download.oracle.com/otn-pub/java/jdk/8u60-b27/jdk-8u60-linux-x64.tar.gz" ')
+
     with cd (stack):
         deploy_tar     (mode, 'jdk')
         deploy_uri_tar (mode, 'maven')
