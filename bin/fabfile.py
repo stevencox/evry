@@ -1,3 +1,18 @@
+#########################################################################
+##
+## Cluster installer
+##
+##    * In general we try to make operations idempotent and reversible.
+##
+##    * Idempotency: Running an operation once should have the same
+##      effect as running it ten times.
+##
+##    * Reversibility: Each operation implements install and clean 
+##      sub-operations. The default is to install and clean can be 
+##      specified to reverse the ordinary operation.
+##
+#########################################################################
+
 import os
 import socket
 from string import Template
@@ -9,21 +24,17 @@ from fabric.api import run
 from fabric.api import sudo
 from fabric.contrib.files import exists
 
-# monit
-# http://www.itzgeek.com/how-tos/linux/centos-how-tos/monitor-and-manage-services-with-monit-on-centos-7-rhel-7.html
-
-# the user to use for the remote commands
-
-env.user = 'scox'
+# User identity for remote commands
 env.user = 'evryscope'
 
+# Paths
 root  = "/projects/stars"
-
 stack = "%s/stack" % root
 app   = "%s/app"   % root
 dist  = "%s/dist"  % root
 conf  = "%s/app/evry/conf" % root
 
+# Third party libraries to install
 dist_map = {
     'spark'    : 'http://apache.arvixe.com//spark/spark-1.4.1/spark-1.4.1-bin-hadoop2.6.tgz',
     'scala'    : 'http://www.scala-lang.org/files/archive/scala-2.10.4.tgz',    
@@ -36,17 +47,19 @@ dist_map = {
     'swarp'    : 'http://www.astromatic.net/download/swarp/swarp-2.38.0-1.x86_64.rpm'
 }
 
+# Apps we want on all machines
 base_apps = {
     'python-virtualenv' : 'python-virtualenv',
     'monit-'            : 'monit',
-    'git-'               : 'git'
+    'git-'              : 'git'
 }
 
-# Servers where the commands are executed
+# Head nodes - run cluster management software
 head_nodes = (
     'stars-c0.edc.renci.org',
     'stars-c1.edc.renci.org'
 )
+# Worker nodes - will execute jobs
 worker_nodes = (
     'stars-c2.edc.renci.org',
     'stars-c3.edc.renci.org',
@@ -56,8 +69,10 @@ worker_nodes = (
     'stars-c7.edc.renci.org'
 )
 
+# Zookeeper nodes
 zookeeper_nodes=( 'stars-c0.edc.renci.org' )
 
+# Head nodes plus workers
 cluster_nodes = tuple(list(head_nodes) + list(worker_nodes))
 
 ##################################################################
@@ -66,8 +81,6 @@ cluster_nodes = tuple(list(head_nodes) + list(worker_nodes))
 ##
 ##################################################################
 
-def stackpath (name):
-    return "%s/%s" % (stack, name)
 def execute_op (mode, install, clean):
     installed = True
     if mode == "install":
@@ -123,9 +136,13 @@ def deploy_tar (mode, name):
 
 # Yum
 
-def install_mesosphere_repo ():
-    mesosphere_repo='http://repos.mesosphere.com/el/7/noarch/RPMS/mesosphere-el-repo-7-1.noarch.rpm'
-    sudo ('if [ -z "$( rpm -qa | grep mesosphere-el-repo )" ]; then yum install --assumeyes --quiet %s; fi' % mesosphere_repo)
+def install_mesosphere_repo (mode="install"):
+    def install ():
+        mesosphere_repo='http://repos.mesosphere.com/el/7/noarch/RPMS/mesosphere-el-repo-7-1.noarch.rpm'
+        sudo ('if [ -z "$( rpm -qa | grep mesosphere-el-repo )" ]; then yum install --assumeyes --quiet %s; fi' % mesosphere_repo)
+    def clean ():
+        yum_install (mode, "mesosphere-el-repo", "mesosphere-el-repo")
+    return execute_op (mode, install, clean)
 
 def yum_installed (package):
     return 'if [ "$(rpm -qa | grep -c %s)" -gt 0  ]; then true; fi' % package
@@ -137,7 +154,6 @@ def get_yum_command (sudo=True, install=True):
         command = command.substitute (yum=yum, compareop='==', command='install')
     else:
         command = command.substitute (yum=yum, compareop='-gt', command='remove')
-
     return command
 
 def yum_install (mode, query, package):
@@ -169,8 +185,8 @@ def configure_service (mode, service):
 def web (mode="install"):
     def install ():
         local (get_yum_command (sudo=True) % ("nginx", "nginx"))
-        local ('sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.orig')
-        local ('sudo cp -r /etc/nginx/conf.d /etc/nginx/conf.d.orig')
+        local ('if [ ! -f /etc/nginx/nginx.conf.orig ]; then sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.orig; fi')
+        local ('if [ ! -d /etc/nginx/conf.d.orig ]; then sudo cp -r /etc/nginx/conf.d /etc/nginx/conf.d.orig')
         for app in base_apps:
             local (get_yum_command (sudo=True) % (app, base_apps[app]))
     def clean ():
@@ -183,19 +199,19 @@ def web (mode="install"):
 
 def proxy (mode="install"):
     def install ():        
-        local ('sudo cp -r %s/nginx/nginx.conf /etc/nginx' % conf)
+        local ('sudo cp %s/nginx/nginx.conf /etc/nginx' % conf)
         local ('sudo cp -r %s/nginx/conf.d /etc/nginx' % conf)
         local ('sudo service nginx stop')
         local ('sudo service nginx start')
         local ('sudo service nginx status')
     def clean ():
-        local ('sudo cp /etc/nginx/nginx.conf.orig /etc/nginx/nginx.conf')
-        local ('sudo cp -r /etc/nginx/nginx.conf.orig /etc/nginx/conf.d')
+        local ('if [ ! -f /etc/nginx/nginx.conf.orig ]; then sudo cp /etc/nginx/nginx.conf.orig /etc/nginx/nginx.conf; fi')
+        local ('if [ ! -f /etc/nginx/nginx.conf.orig ]; then sudo cp -r /etc/nginx/nginx.conf.orig /etc/nginx/conf.d; fi')
     return execute_op (mode, install, clean)
         
 @hosts(head_nodes)
 def heads (mode="install"):
-    install_mesosphere_repo ()
+    install_mesosphere_repo (mode)
     package_map = {
         'haproxy-'             : 'haproxy',
         'emacs-'               : 'emacs',
@@ -226,11 +242,12 @@ clientPort=2181
     configure_service (mode, 'mesos-master')
     configure_service (mode, 'marathon')
     configure_service (mode, 'chronos')
+    head_firewall (mode)
 
     return execute_op (mode, install, clean)
 
 @hosts(head_nodes)
-def head_iptables (mode="install"):
+def head_firewall (mode="install"):
     def install ():
         sudo ('if [ ! -f /etc/sysconfig/iptables.orig ]; then cp /etc/sysconfig/iptables /etc/sysconfig/iptables.orig; fi')
         sudo ('cp %s/iptables.headnode /etc/sysconfig/iptables' % conf)
@@ -245,7 +262,7 @@ def head_iptables (mode="install"):
 @hosts(worker_nodes)
 def workers (mode="install"):
     def install ():
-        install_mesosphere_repo ()
+        install_mesosphere_repo (mode)
         yum_install (mode, "mesos-", "mesos")
         conf_base_node (mode)
         sudo ("systemctl enable mesos-slave")
@@ -265,10 +282,14 @@ def workers (mode="install"):
 @hosts(cluster_nodes)
 def conf_base_node (mode="install"):
     def install ():
+        # Deploy standard bashrc to all worker nodes (controlling user environment).
+        sudo ('cp %s/evryscope.bashrc /home/evryscope/.bashrc' % conf)
+        # Deploy zookeeper configuration (identifying quorum hosts) to all nodes.
         addr = local ("ping -c 1 %s | awk 'NR==1{gsub(/\(|\)/,\"\",$3);print $3}'" % zookeeper_nodes, capture=True)
         print "zookeeper hosts: %s" % addr
         text = "%s:2181" % addr
         sudo ('echo zk://%s/mesos > /etc/mesos/zk' % text)
+        # Deploy base apps everywhere.
         for app in base_apps:
             yum_install (mode, app, base_apps[app])
     def clean ():
