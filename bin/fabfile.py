@@ -253,7 +253,7 @@ def workers (mode="install"):
         sudo ('service iptables stop')
     def clean ():
         sudo ('service iptables start')
-        sudo ('service iptables status')
+        sudo ('service iptables status') 
         sudo ("systemctl disable mesos-slave")
         sudo ("service mesos-slave stop")
         yum_install (mode, "mesos-", "mesos")
