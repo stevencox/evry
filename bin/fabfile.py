@@ -34,6 +34,9 @@ app   = "%s/app"   % root
 dist  = "%s/dist"  % root
 conf  = "%s/app/evry/conf" % root
 
+opt   = "/opt/app"
+orchestration = "%s/orchestration" % opt
+
 # Third party libraries to install
 dist_map = {
     'spark'    : 'http://apache.arvixe.com//spark/spark-1.4.1/spark-1.4.1-bin-hadoop2.6.tgz',
@@ -81,6 +84,7 @@ cluster_nodes = tuple(list(head_nodes) + list(worker_nodes))
 ##
 ##################################################################
 
+''' uniformly select install or clean operation based on the mode parameter '''
 def execute_op (mode, install, clean):
     installed = True
     if mode == "install":
@@ -92,38 +96,35 @@ def execute_op (mode, install, clean):
 
 # Tar
 
+''' Untar a file and create a symbolic link called current to the extracted folder '''
 def untar_and_link (name, file_name):
     run ('tar xzf %s/%s' % (dist, file_name))
     run ('ln -s *%s* current' % name)
     run ('ls -lisa')
 
+''' Deploy a tar based on a URI '''
 def deploy_uri_tar (mode, name):
     path = "%s/%s" % (stack, name)
     def install ():
         uri = dist_map [name]
-        run ('rm -rf %s' % path)
+        with cd (dist):
+            run ('wget --timestamping --quiet %s' % uri)
         run ('mkdir -p %s' % path)
         with cd (path):
-            with cd (dist):
-                run ('wget --timestamping --quiet %s' % uri)
             untar_and_link (name, os.path.basename (uri))
     def clean ():
         run ('rm -rf %s' % path)
     return execute_op (mode, install, clean)
 
+''' Deploy an RPM based on a URI '''
 def deploy_uri_rpm (mode, name):
-    path = "%s/%s" % (stack, name)
     def install ():
-        uri = dist_map [name]
-        run ('rm -rf %s' % path)
-        run ('mkdir -p %s' % path)
-        with cd (path):
-            with cd (dist):
-                yum_install (mode, name, dist_map[name])
+        yum_install (mode, name, dist_map [name])
     def clean ():
         yum_install (mode, name, name)
     return execute_op (mode, install, clean)
 
+''' Deploy a tar '''
 def deploy_tar (mode, name):
     path = "%s/%s" % (stack, name)
     def install ():
@@ -136,6 +137,7 @@ def deploy_tar (mode, name):
 
 # Yum
 
+''' Add the MesoSphere Repo '''
 def install_mesosphere_repo (mode="install"):
     def install ():
         mesosphere_repo='http://repos.mesosphere.com/el/7/noarch/RPMS/mesosphere-el-repo-7-1.noarch.rpm'
@@ -144,9 +146,11 @@ def install_mesosphere_repo (mode="install"):
         yum_install (mode, "mesosphere-el-repo", "mesosphere-el-repo")
     return execute_op (mode, install, clean)
 
+''' Determine if a package is installed '''
 def yum_installed (package):
     return 'if [ "$(rpm -qa | grep -c %s)" -gt 0  ]; then true; fi' % package
 
+''' Get a yum command ''' 
 def get_yum_command (sudo=True, install=True):
     command = Template('if [ "$$(rpm -qa | grep -c %s)" $compareop 0  ]; then $yum $command --assumeyes --quiet %s; fi')
     yum = "sudo yum" if sudo else "yum"
@@ -156,6 +160,7 @@ def get_yum_command (sudo=True, install=True):
         command = command.substitute (yum=yum, compareop='-gt', command='remove')
     return command
 
+''' Invoke yum '''
 def yum_install (mode, query, package):
     def install ():
         sudo (get_yum_command () % (query, package))
@@ -165,6 +170,7 @@ def yum_install (mode, query, package):
 
 # SystemD
 
+''' Configure a systemd service ''' 
 def configure_service (mode, service):
     def install ():
         sudo ('systemctl enable %s' % service)
@@ -182,13 +188,23 @@ def configure_service (mode, service):
 ##
 ##################################################################
 
+''' configure the web server '''
 def web (mode="install"):
     def install ():
+        ''' Install nginx '''
         local (get_yum_command (sudo=True) % ("nginx", "nginx"))
-        local ('if [ ! -f /etc/nginx/nginx.conf.orig ]; then sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.orig; fi')
-        local ('if [ ! -d /etc/nginx/conf.d.orig ]; then sudo cp -r /etc/nginx/conf.d /etc/nginx/conf.d.orig')
+
+        ''' Install basic apps '''
         for app in base_apps:
             local (get_yum_command (sudo=True) % (app, base_apps[app]))
+
+        ''' Configure proxy '''
+        local ('sudo cp %s/nginx/nginx.conf /etc/nginx' % conf)
+        local ('sudo cp -r %s/nginx/conf.d /etc/nginx' % conf)
+        local ('sudo service nginx stop')
+        local ('sudo service nginx start')
+        local ('sudo service nginx status')
+
     def clean ():
         local (get_yum_command(sudo=True, install=False) % ("nginx", "nginx"))
         local (get_yum_command(sudo=True, install=False) % ("nginx-filesystem", "nginx-filesystem"))
@@ -197,18 +213,7 @@ def web (mode="install"):
             local (get_yum_command (sudo=True, install=False) % (app, base_apps[app]))
     return execute_op (mode, install, clean)
 
-def proxy (mode="install"):
-    def install ():        
-        local ('sudo cp %s/nginx/nginx.conf /etc/nginx' % conf)
-        local ('sudo cp -r %s/nginx/conf.d /etc/nginx' % conf)
-        local ('sudo service nginx stop')
-        local ('sudo service nginx start')
-        local ('sudo service nginx status')
-    def clean ():
-        local ('if [ ! -f /etc/nginx/nginx.conf.orig ]; then sudo cp /etc/nginx/nginx.conf.orig /etc/nginx/nginx.conf; fi')
-        local ('if [ ! -f /etc/nginx/nginx.conf.orig ]; then sudo cp -r /etc/nginx/nginx.conf.orig /etc/nginx/conf.d; fi')
-    return execute_op (mode, install, clean)
-        
+''' Configure head nodes '''        
 @hosts(head_nodes)
 def heads (mode="install"):
     install_mesosphere_repo (mode)
@@ -239,15 +244,38 @@ clientPort=2181
         sudo ('rm -rf /var/lib/zookeeper/myid')
         sudo ('rm -rf /etc/zookeeper/conf/zoo.cfg')
 
-    configure_service (mode, 'mesos-master')
-    configure_service (mode, 'marathon')
-    configure_service (mode, 'chronos')
-    head_firewall (mode)
+    firewall (mode)
+    services (mode)
 
     return execute_op (mode, install, clean)
 
-@hosts(head_nodes)
-def head_firewall (mode="install"):
+''' Configure head node systemD services '''
+def services (mode="install"):
+    def install ():
+        sudo ('cp %s/mesos/mesos-master.service /usr/lib/systemd/system/' % conf)
+        sudo ('cp %s/marathon/marathon.service  /usr/lib/systemd/system/' % conf)
+        sudo ('cp %s/chronos/chronos.service    /usr/lib/systemd/system/' % conf)
+    def clean ():
+        sudo ('rm /usr/lib/systemd/system/mesos-master.service')
+        sudo ('rm /usr/lib/systemd/system/marathon.service')
+        sudo ('rm /usr/lib/systemd/system/chronos/chronos.service')
+    configure_service (mode, 'mesos-master')
+    configure_service (mode, 'marathon')
+    configure_service (mode, 'chronos')
+    return execute_op (mode, install, clean)
+
+''' Configure orchestration server '''
+def orchestration ():
+    with cd (opt):
+        sudo ('mkdir -p /opt/app')
+        sudo ('chown %s /opt/app' % env.user)
+        run ('git clone https://github.com/stevencox/orchestration.git')
+    with cd (orchestration):
+        run ('cp %s/orchestration/local_config.json %s/etc' % (conf, orchestration))
+        sudo ('-E ./bin/orch.sh run dev -c ./etc/local_config.json')
+
+''' Configure head node firewall ''' 
+def firewall (mode="install"):
     def install ():
         sudo ('if [ ! -f /etc/sysconfig/iptables.orig ]; then cp /etc/sysconfig/iptables /etc/sysconfig/iptables.orig; fi')
         sudo ('cp %s/iptables.headnode /etc/sysconfig/iptables' % conf)
@@ -261,10 +289,9 @@ def head_firewall (mode="install"):
 ''' Applies to every worker node. Configure worker and firewall. '''
 @hosts(worker_nodes)
 def workers (mode="install"):
+    install_mesosphere_repo (mode)
+    conf_base_node (mode)
     def install ():
-        install_mesosphere_repo (mode)
-        yum_install (mode, "mesos-", "mesos")
-        conf_base_node (mode)
         sudo ("systemctl enable mesos-slave")
         sudo ("service mesos-slave restart")
         sudo ("service mesos-slave status")
@@ -274,8 +301,7 @@ def workers (mode="install"):
         sudo ('service iptables status') 
         sudo ("systemctl disable mesos-slave")
         sudo ("service mesos-slave stop")
-        yum_install (mode, "mesos-", "mesos")
-        conf_base_node (mode)
+    yum_install (mode, "mesos-", "mesos")
     return execute_op (mode, install, clean)
 
 ''' Applies to every machine '''
@@ -298,9 +324,9 @@ def conf_base_node (mode="install"):
             yum_install (mode, app, base_apps[app])
     return execute_op (mode, install, clean)
 
-''' Configure zookeeper cluster '''        
+''' Configure zookeeper cluster '''
 @hosts(zookeeper_nodes)
-def zookeeper (mode="install"):
+def zoo (mode="install"):
     configure_service (mode, 'zookeeper')
 
 ''' Configure general tools underlying the cluster '''
