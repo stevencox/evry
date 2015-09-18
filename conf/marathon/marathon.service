@@ -1,0 +1,14 @@
+[Unit]
+Description=Marathon
+After=network.target
+Wants=network.target
+
+[Service]
+User=evryscope
+EnvironmentFile=-/etc/sysconfig/marathon
+ExecStart=/usr/bin/marathon
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

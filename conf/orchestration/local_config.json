@@ -1,0 +1,13 @@
+{
+    "marathon_hosts" : [
+        "stars-c0.edc.renci.org:8080"
+    ],
+    "services" : {
+        "chronos" : {
+            "port" : 4400
+        }
+    },
+    "config_destination": "/etc/haproxy/haproxy.auto.cfg",
+    "users_config_destination": "/etc/haproxy/haproxy_users.cfg",
+    "pid_file": "/var/run/haproxy.pid"
+}
