@@ -18,14 +18,39 @@ import socket
 from string import Template
 from fabric.api import cd
 from fabric.api import env
+from fabric.api import execute
 from fabric.api import hosts
 from fabric.api import local
+from fabric.api import parallel
+from fabric.api import settings
 from fabric.api import run
 from fabric.api import sudo
 from fabric.contrib.files import exists
 
 # User identity for remote commands
 env.user = 'evryscope'
+
+# Head nodes - run cluster management software
+head_nodes = (
+    'stars-c0.edc.renci.org',
+    'stars-c1.edc.renci.org'
+)
+# Worker nodes - will execute jobs
+worker_nodes = (
+    'stars-c2.edc.renci.org',
+    'stars-c3.edc.renci.org',
+    'stars-c4.edc.renci.org',
+    'stars-c5.edc.renci.org',
+    'stars-c6.edc.renci.org',
+    'stars-c7.edc.renci.org'
+)
+
+# Zookeeper nodes
+zookeeper_nodes=( 'stars-c0.edc.renci.org' )
+
+# Head nodes plus workers
+cluster_nodes = tuple(list(head_nodes) + list(worker_nodes))
+
 
 # Paths
 root  = "/projects/stars"
@@ -53,30 +78,9 @@ dist_map = {
 # Apps we want on all machines
 base_apps = {
     'python-virtualenv' : 'python-virtualenv',
-    'monit-'            : 'monit',
+#    'monit-'            : 'monit',
     'git-'              : 'git'
 }
-
-# Head nodes - run cluster management software
-head_nodes = (
-    'stars-c0.edc.renci.org',
-    'stars-c1.edc.renci.org'
-)
-# Worker nodes - will execute jobs
-worker_nodes = (
-    'stars-c2.edc.renci.org',
-    'stars-c3.edc.renci.org',
-    'stars-c4.edc.renci.org',
-    'stars-c5.edc.renci.org',
-    'stars-c6.edc.renci.org',
-    'stars-c7.edc.renci.org'
-)
-
-# Zookeeper nodes
-zookeeper_nodes=( 'stars-c0.edc.renci.org' )
-
-# Head nodes plus workers
-cluster_nodes = tuple(list(head_nodes) + list(worker_nodes))
 
 ##################################################################
 ##
@@ -98,8 +102,8 @@ def execute_op (mode, install, clean):
 
 ''' Untar a file and create a symbolic link called current to the extracted folder '''
 def untar_and_link (name, file_name):
-    run ('tar xzf %s/%s' % (dist, file_name))
-    run ('ln -s *%s* current' % name)
+    run ('if [[ ! -h current ]]; then tar xzf %s/%s; fi' % (dist, file_name))
+    run ('if [[ ! -h current ]]; then ln -s *%s* current; fi' % name)
     run ('ls -lisa')
 
 ''' Deploy a tar based on a URI '''
@@ -174,12 +178,13 @@ def yum_install (mode, query, package):
 def configure_service (mode, service):
     def install ():
         sudo ('systemctl enable %s' % service)
-        sudo ('systemctl stop %s' % service)
-        sudo ('systemctl start %s' % service)
+        sudo ('systemctl restart %s' % service)
+        run  ('sleep 3')
         sudo ('systemctl status %s' % service)
     def clean ():
-        sudo ('systemctl stop %s' % service)
-        sudo ('systemctl disable %s' % service)
+        with settings(warn_only=True):
+            sudo ('systemctl stop %s' % service)
+            sudo ('systemctl disable %s' % service)
     return execute_op (mode, install, clean)
 
 ##################################################################
@@ -215,15 +220,19 @@ def web (mode="install"):
 
 ''' Configure head nodes '''        
 @hosts(head_nodes)
-def heads (mode="install"):
+def head (mode="install"):
+    '''
+    '''
     install_mesosphere_repo (mode)
+    base (mode)
+    zoo (mode)
     package_map = {
         'haproxy-'             : 'haproxy',
         'emacs-'               : 'emacs',
         'mesos-'               : 'mesos',
         'marathon-'            : 'marathon',
-        'chronos-'             : 'chronos',
-        'mesosphere-zookeeper' : 'mesosphere-zookeeper' }
+        'chronos-'             : 'chronos'
+    }
     for key in package_map:
         yum_install (mode, key, package_map[key])
     sudo ('rm -rf /etc/mesos-master/quorum.rpm*')
@@ -238,41 +247,60 @@ dataDir=/var/log/zookeeper
 clientPort=2181
 """ % addr
         sudo ('echo \"%s\" > /etc/zookeeper/conf/zoo.cfg' % zoo_cfg)
-        conf_base_node (mode)
+        sudo ('chown -R %s /var/log/mesos' % env.user)
+        sudo ('chown -R %s /var/lib/mesos' % env.user)
+        run ('gem install marathon_client')
+        firewall (mode)
+        orchestra (mode)
+        services (mode)
     def clean ():
+        services (mode)
         sudo ('rm -rf /etc/mesos-master/quorum')
-        sudo ('rm -rf /var/lib/zookeeper/myid')
-        sudo ('rm -rf /etc/zookeeper/conf/zoo.cfg')
-
-    firewall (mode)
-    services (mode)
+        sudo ('rm -rf /var/lib/zookeeper')
+        sudo ('rm -rf /etc/zookeeper')
+        run ('gem uninstall --quiet --executables marathon_client')
+        firewall (mode)
+        orchestra (mode)
 
     return execute_op (mode, install, clean)
 
 ''' Configure head node systemD services '''
 def services (mode="install"):
     def install ():
-        sudo ('cp %s/mesos/mesos-master.service /usr/lib/systemd/system/' % conf)
-        sudo ('cp %s/marathon/marathon.service  /usr/lib/systemd/system/' % conf)
-        sudo ('cp %s/chronos/chronos.service    /usr/lib/systemd/system/' % conf)
+        pass
+#        sudo ('cp %s/mesos/mesos-master.service /usr/lib/systemd/system/' % conf)
+#        sudo ('cp %s/marathon/marathon.service  /usr/lib/systemd/system/' % conf)
+#        sudo ('cp %s/chronos/chronos.service    /usr/lib/systemd/system/' % conf)
     def clean ():
-        sudo ('rm /usr/lib/systemd/system/mesos-master.service')
-        sudo ('rm /usr/lib/systemd/system/marathon.service')
-        sudo ('rm /usr/lib/systemd/system/chronos/chronos.service')
+        sudo ('rm -f /usr/lib/systemd/system/mesos-master.service')
+        sudo ('rm -f /usr/lib/systemd/system/marathon.service')
+        sudo ('rm -f /usr/lib/systemd/system/chronos/chronos.service')
+        sudo ('rm -f /usr/lib/systemd/system/chronos/orchestration.service')
+
     configure_service (mode, 'mesos-master')
     configure_service (mode, 'marathon')
     configure_service (mode, 'chronos')
+    configure_service (mode, 'orchestration')
+
     return execute_op (mode, install, clean)
 
 ''' Configure orchestration server '''
-def orchestration ():
-    with cd (opt):
+@hosts(head_nodes)
+def orchestra (mode="install"):
+    def install ():
         sudo ('mkdir -p /opt/app')
         sudo ('chown %s /opt/app' % env.user)
-        run ('git clone https://github.com/stevencox/orchestration.git')
-    with cd (orchestration):
-        run ('cp %s/orchestration/local_config.json %s/etc' % (conf, orchestration))
-        sudo ('-E ./bin/orch.sh run dev -c ./etc/local_config.json')
+        sudo ('mkdir -p /var/log/orchestration')
+        sudo ('chown %s /var/log/orchestration' % env.user)
+        with cd (opt):
+            sudo ('rm -rf orchestration')
+            run ('git clone --quiet https://github.com/stevencox/orchestration.git')
+        with cd (orchestration):
+            run ('cp %s/orchestration/local_config.json %s/etc' % (conf, orchestration))
+            sudo ('cp %s/orchestration/orchestration.service /usr/lib/systemd/system' % conf)
+    def clean ():
+        sudo ('rm -rf /opt/app/orchestration')
+    return execute_op (mode, install, clean)
 
 ''' Configure head node firewall ''' 
 def firewall (mode="install"):
@@ -285,39 +313,46 @@ def firewall (mode="install"):
         sudo ('cp /etc/sysconfig/iptables.orig /etc/sysconfig/iptables')
         sudo ('service iptables stop')
         sudo ('service iptables status')
+    return execute_op (mode, install, clean)
 
 ''' Applies to every worker node. Configure worker and firewall. '''
+@parallel
 @hosts(worker_nodes)
-def workers (mode="install"):
+def work (mode="install"):
     install_mesosphere_repo (mode)
-    conf_base_node (mode)
+    base (mode)
     def install ():
+#        sudo ('cp %s/mesos/mesos-slave.service /usr/lib/systemd/system' % conf)
+#        sudo ('chown -R evryscope /var/log/mesos/')
+#        sudo ('chown -R evryscope /tmp/mesos')
         sudo ("systemctl enable mesos-slave")
         sudo ("service mesos-slave restart")
         sudo ("service mesos-slave status")
         sudo ('service iptables stop')
     def clean ():
-        sudo ('service iptables start')
-        sudo ('service iptables status') 
-        sudo ("systemctl disable mesos-slave")
-        sudo ("service mesos-slave stop")
+        with settings(warn_only=True):
+            sudo ('service iptables start')
+            sudo ('service iptables status') 
+            sudo ("systemctl disable mesos-slave")
+            sudo ("service mesos-slave stop")
     yum_install (mode, "mesos-", "mesos")
     return execute_op (mode, install, clean)
 
 ''' Applies to every machine '''
+@parallel
 @hosts(cluster_nodes)
-def conf_base_node (mode="install"):
+def base (mode="install"):
     def install ():
+        # Deploy base apps everywhere.
+        for app in base_apps:
+            yum_install (mode, app, base_apps[app])
         # Deploy standard bashrc to all worker nodes (controlling user environment).
         sudo ('cp %s/evryscope.bashrc /home/evryscope/.bashrc' % conf)
         # Deploy zookeeper configuration (identifying quorum hosts) to all nodes.
         addr = local ("ping -c 1 %s | awk 'NR==1{gsub(/\(|\)/,\"\",$3);print $3}'" % zookeeper_nodes, capture=True)
         print "zookeeper hosts: %s" % addr
         text = "%s:2181" % addr
-        sudo ('echo zk://%s/mesos > /etc/mesos/zk' % text)
-        # Deploy base apps everywhere.
-        for app in base_apps:
-            yum_install (mode, app, base_apps[app])
+        sudo ('sh -c "echo zk://%s/mesos > /etc/mesos/zk" ' % text)
     def clean ():
         sudo ('rm -rf /etc/mesos/zk')
         for app in base_apps:
@@ -327,17 +362,21 @@ def conf_base_node (mode="install"):
 ''' Configure zookeeper cluster '''
 @hosts(zookeeper_nodes)
 def zoo (mode="install"):
+    yum_install (mode, 'mesosphere-zookeeper', 'mesosphere-zookeeper')
     configure_service (mode, 'zookeeper')
 
 ''' Configure general tools underlying the cluster '''
+@parallel
 @hosts(zookeeper_nodes)
-def devstack (mode="install"):
+def core (mode="install"):
     run('hostname -f')
     run('mkdir -p %s' % dist)
     run('mkdir -p %s' % stack)
     run('mkdir -p %s' % app)
     with cd (dist):
-        run ('wget --timestamping --no-cookies --no-check-certificate --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" "http://download.oracle.com/otn-pub/java/jdk/8u60-b27/jdk-8u60-linux-x64.tar.gz" ')
+        run ("""wget --quiet --timestamping --no-cookies --no-check-certificate \
+                     --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" \
+                     "http://download.oracle.com/otn-pub/java/jdk/8u60-b27/jdk-8u60-linux-x64.tar.gz" """)
 
     with cd (stack):
         deploy_tar     (mode, 'jdk')
@@ -353,6 +392,14 @@ def devstack (mode="install"):
         deploy_uri_tar (mode, 'tachyon')
 
 ''' Configure astroinformatics stack '''
+@parallel
 @hosts(cluster_nodes)
 def astro (mode="install"):
     deploy_uri_rpm (mode, 'swarp')
+
+def all (mode="install"):
+    execute (base, mode=mode,  hosts=cluster_nodes)
+    execute (core, mode=mode,  hosts=worker_nodes)
+    execute (head, mode=mode,  hosts=head_nodes)
+    execute (work, mode=mode,  hosts=worker_nodes)
+    execute (astro, mode=mode, hosts=worker_nodes)
