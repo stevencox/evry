@@ -15,7 +15,9 @@
 
 import os
 import socket
+
 from string import Template
+
 from fabric.api import cd
 from fabric.api import env
 from fabric.api import execute
@@ -44,12 +46,15 @@ worker_nodes = (
     'stars-c6.edc.renci.org',
     'stars-c7.edc.renci.org'
 )
-
+# Database nodes
+db_nodes = (
+    'stars-db.edc.renci.org'
+)
 # Zookeeper nodes
 zookeeper_nodes=( 'stars-c0.edc.renci.org' )
-
 # Head nodes plus workers
 cluster_nodes = tuple(list(head_nodes) + list(worker_nodes))
+cluster_nodes = tuple(list(cluster_nodes) + list(db_nodes))
 
 
 # Paths
@@ -64,23 +69,27 @@ orchestration = "%s/orchestration" % opt
 
 # Third party libraries to install
 dist_map = {
-    'spark'    : 'http://apache.arvixe.com//spark/spark-1.4.1/spark-1.4.1-bin-hadoop2.6.tgz',
-    'scala'    : 'http://www.scala-lang.org/files/archive/scala-2.10.4.tgz',    
-    'jdk'      : 'jdk-8u60-linux-x64.tar.gz',
-    'maven'    : 'http://download.nextag.com/apache/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz',
-    'mongodb'  : 'https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-rhel70-3.0.6.tgz',
-    'node'     : 'https://nodejs.org/dist/v0.12.7/node-v0.12.7-linux-x64.tar.gz',
-    'hadoop'   : 'http://apache.arvixe.com/hadoop/common/hadoop-2.6.0/hadoop-2.6.0.tar.gz',
-    'tachyon'  : 'http://tachyon-project.org/downloads/files/0.7.1/tachyon-0.7.1-bin.tar.gz',
-    'swarp'    : 'http://www.astromatic.net/download/swarp/swarp-2.38.0-1.x86_64.rpm'
+    'spark'      : 'http://apache.arvixe.com//spark/spark-1.4.1/spark-1.4.1-bin-hadoop2.6.tgz',
+    'scala'      : 'http://www.scala-lang.org/files/archive/scala-2.10.4.tgz',    
+    'jdk'        : 'jdk-8u60-linux-x64.tar.gz',
+    'maven'      : 'http://download.nextag.com/apache/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz',
+    'mongodb'    : 'https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-rhel70-3.0.6.tgz',
+    'node'       : 'https://nodejs.org/dist/v0.12.7/node-v0.12.7-linux-x64.tar.gz',
+    'hadoop'     : 'http://apache.arvixe.com/hadoop/common/hadoop-2.6.0/hadoop-2.6.0.tar.gz',
+    'tachyon'    : 'http://tachyon-project.org/downloads/files/0.7.1/tachyon-0.7.1-bin.tar.gz',
+    'swarp'      : 'http://www.astromatic.net/download/swarp/swarp-2.38.0-1.x86_64.rpm',
+    'sextractor' : 'http://www.astromatic.net/download/sextractor/sextractor-2.19.5-1.x86_64.rpm'
 }
 
 # Apps we want on all machines
 base_apps = {
     'python-virtualenv' : 'python-virtualenv',
-#    'monit-'            : 'monit',
-    'git-'              : 'git'
+    'git-'              : 'git',
+    'emacs-'            : 'emacs'
 }
+
+evry_app_git_uri = "https://github.com/stevencox/evry.git"
+orchestration_app_git_uri = "https://github.com/stevencox/orchestration.git"
 
 ##################################################################
 ##
@@ -294,7 +303,7 @@ def orchestra (mode="install"):
         sudo ('chown %s /var/log/orchestration' % env.user)
         with cd (opt):
             sudo ('rm -rf orchestration')
-            run ('git clone --quiet https://github.com/stevencox/orchestration.git')
+            run ('git clone --quiet %s' % orchestration_app_git_uri)
         with cd (orchestration):
             run ('cp %s/orchestration/local_config.json %s/etc' % (conf, orchestration))
             sudo ('cp %s/orchestration/orchestration.service /usr/lib/systemd/system' % conf)
@@ -329,6 +338,20 @@ def work (mode="install"):
         sudo ("service mesos-slave restart")
         sudo ("service mesos-slave status")
         sudo ('service iptables stop')
+
+        # Install evryscope web app
+        app = '/var/www/app'
+        logdir = '/var/log/uwsgi'
+        sudo ('mkdir -p %s' % app)
+        sudo ('chown %s %s' % (env.user, app))
+        sudo ('mkdir -p /var/log/uwsgi')
+        sudo ('chown %s %s' % (env.user, logdir))
+        with cd (app):
+            run ('git clone %s' % evry_app_git_uri)
+            run ('virtualenv venv')
+            run ('source venv/bin/activate')
+            run ('pip install uwsgi flask')
+
     def clean ():
         with settings(warn_only=True):
             sudo ('service iptables start')
@@ -377,29 +400,51 @@ def core (mode="install"):
         run ("""wget --quiet --timestamping --no-cookies --no-check-certificate \
                      --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" \
                      "http://download.oracle.com/otn-pub/java/jdk/8u60-b27/jdk-8u60-linux-x64.tar.gz" """)
-
     with cd (stack):
         deploy_tar     (mode, 'jdk')
         deploy_uri_tar (mode, 'maven')
-
         deploy_uri_tar (mode, 'scala')
         deploy_uri_tar (mode, 'spark')
-
         deploy_uri_tar (mode, 'node')
         deploy_uri_tar (mode, 'mongodb')
-
         deploy_uri_tar (mode, 'hadoop')
         deploy_uri_tar (mode, 'tachyon')
+
+@hosts(db_nodes)
+def db (mode="install"):
+    def install ():
+        sudo ('cp %s/iptables.db /etc/sysconfig/iptables')
+        sudo ('service iptables restart')
+        yum_install (mode, 'postgresql-', 'postgresql')
+        yum_install (mode, 'postgresql-server', 'postgresql-server')
+        yum_install (mode, 'postgresql-devel', 'postgresql-devel')
+        sudo ('postgresql-setup initdb')
+        configure_service (mode, 'postgresql')
+
+        run ('wget http://pgfoundry.org/frs/download.php/2558/pgsphere-1.1.1.tar.gz')
+        run ('tar xvzf pgsphere-1.1.1.tar.gz')
+        with cd ('pgsphere-1.1.1'):
+            sudo ('make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config')
+            sudo ('make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config install')
+            sudo ('service postgresql restart')
+    def clean ():
+        configure_service (mode, 'postgresql')
+        yum_install (mode, 'postgresql-', 'postgresql')
+        yum_install (mode, 'postgresql-server', 'postgresql-server')
+        yum_install (mode, 'postgresql-devel', 'postgresql-devel')
+    return execute_op (mode, install, clean)
 
 ''' Configure astroinformatics stack '''
 @parallel
 @hosts(cluster_nodes)
 def astro (mode="install"):
     deploy_uri_rpm (mode, 'swarp')
+    deploy_uri_rpm (mode, 'sextractor')
 
 def all (mode="install"):
-    execute (base, mode=mode,  hosts=cluster_nodes)
-    execute (core, mode=mode,  hosts=worker_nodes)
-    execute (head, mode=mode,  hosts=head_nodes)
-    execute (work, mode=mode,  hosts=worker_nodes)
-    execute (astro, mode=mode, hosts=worker_nodes)
+    execute (base,  mode=mode,  hosts=cluster_nodes)
+    execute (core,  mode=mode,  hosts=worker_nodes)
+    execute (head,  mode=mode,  hosts=head_nodes)
+    execute (work,  mode=mode,  hosts=worker_nodes)
+    execute (db,    mode=mode,  hosts=worker_nodes)
+    execute (astro, mode=mode,  hosts=worker_nodes)

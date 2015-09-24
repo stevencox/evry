@@ -1,0 +1,31 @@
+#!/bin/bash
+
+set -x
+set -e
+
+ROOT=/opt/app
+APP_ROOT=$ROOT/evry
+VENV=$APP_ROOT/venv
+
+vinit () {
+    sudo mkdir -p $ROOT
+    sudo chown $(whoami) $ROOT
+    cd $ROOT
+    if [ ! -d evry ]; then
+	git clone https://github.com/stevencox/evry.git
+	cd evry
+	virtualenv venv
+	source venv/bin/activate
+	sudo yum install -y postgresql-devel
+	pip install uwsgi flask psycopg2
+	deactivate
+    fi
+}
+
+vinit
+source $VENV/bin/activate
+
+cd $APP_ROOT
+$VENV/bin/uwsgi --socket 127.0.0.1:5000 --wsgi-file ./app.py --callable app --processes 4 --threads 2 --stats 127.0.0.1:9191
+
+exit 0
