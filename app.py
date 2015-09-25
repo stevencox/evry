@@ -98,7 +98,8 @@ get_file $file
 def listImages():
     logger.info ("Listing images")    
     return jsonify ({ 
-        "images" : [ x.split('/')[-1] for x in glob.glob('./static/tiles/img*calib') ]
+#        "images" : [ x.split('/')[-1] for x in glob.glob('./static/tiles/img*calib') ]
+        "images" : [ x.split('/')[-1] for x in glob.glob('/projects/stars/var/tiles/img*calib') ]
     })
 
 if __name__ == '__main__':
