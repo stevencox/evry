@@ -6,24 +6,30 @@ import psycopg2.extras
 import pprint
 import logging
 import glob
+import traceback
 
 logger = logging.getLogger (__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 
 dbname="evryscope"
 dbuser="evryscope"
-dbhost="locahost"
+dbhost="stars-db.edc.renci.org"
 dbpass="evryscope"
 
 conn = None
 try:
-    conn = psycopg2.connect (dbname=dbname,
+    conn = psycopg2.connect (host=dbhost,
+                             dbname=dbname,
                              user=dbuser,
                              password=dbpass)
-except:
-    print "I am unable to connect to the database"
-print "connected"
+    logger.info ("Connected to host: {0} db: {1} as user: {2}"
+                 .format (dbhost, dbname, dbuser))
+except Exception, e:
+    logger.exception (e)
+    traceback.print_exc ()
+
 
 
 @app.route('/')
