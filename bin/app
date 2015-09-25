@@ -8,24 +8,26 @@ APP_ROOT=$ROOT/evry
 VENV=$APP_ROOT/venv
 
 vinit () {
-    sudo mkdir -p $ROOT
-    sudo chown $(whoami) $ROOT
     cd $ROOT
+    rm -rf evry
     if [ ! -d evry ]; then
 	git clone https://github.com/stevencox/evry.git
 	cd evry
 	virtualenv venv
 	source venv/bin/activate
-	sudo yum install -y postgresql-devel
-	pip install uwsgi flask psycopg2
+	pip install flask uwsgi psycopg2
 	deactivate
+	cd static
+	ln -s /projects/stars/var/tiles tiles
     fi
 }
 
 vinit
-source $VENV/bin/activate
-
 cd $APP_ROOT
-$VENV/bin/uwsgi --socket 127.0.0.1:5000 --wsgi-file ./app.py --callable app --processes 4 --threads 2 --stats 127.0.0.1:9191
+source $VENV/bin/activate
+if [[ ! -z "$(pgrep app.py)" ]]; then
+    pkill -f app.py
+fi
+python ./app.py
 
 exit 0

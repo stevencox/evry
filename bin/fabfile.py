@@ -32,11 +32,23 @@ from fabric.contrib.files import exists
 # User identity for remote commands
 env.user = 'evryscope'
 
+''' Concatenate lists of tuples '''
+def concat (T):
+    A = []
+    for element in T:
+        if isinstance(element, basestring):
+            A.append (element)
+        elif isinstance (element, tuple):
+            for i in element:
+                A.append (i)
+    return tuple (A)
+
 # Head nodes - run cluster management software
 head_nodes = (
     'stars-c0.edc.renci.org',
     'stars-c1.edc.renci.org'
 )
+
 # Worker nodes - will execute jobs
 worker_nodes = (
     'stars-c2.edc.renci.org',
@@ -46,16 +58,17 @@ worker_nodes = (
     'stars-c6.edc.renci.org',
     'stars-c7.edc.renci.org'
 )
+
 # Database nodes
 db_nodes = (
     'stars-db.edc.renci.org'
 )
+
 # Zookeeper nodes
 zookeeper_nodes=( 'stars-c0.edc.renci.org' )
-# Head nodes plus workers
-cluster_nodes = tuple(list(head_nodes) + list(worker_nodes))
-cluster_nodes = tuple(list(cluster_nodes) + list(db_nodes))
 
+# Head nodes plus workers
+cluster_nodes = concat ([ head_nodes, worker_nodes, db_nodes ])
 
 # Paths
 root  = "/projects/stars"
@@ -69,10 +82,11 @@ orchestration = "%s/orchestration" % opt
 
 # Third party libraries to install
 dist_map = {
-    'spark'      : 'http://apache.arvixe.com//spark/spark-1.4.1/spark-1.4.1-bin-hadoop2.6.tgz',
+#    'spark'      : 'http://apache.arvixe.com//spark/spark-1.4.1/spark-1.4.1-bin-hadoop2.6.tgz',
+    'spark'      : 'http://apache.arvixe.com/spark/spark-1.5.0/spark-1.5.0-bin-hadoop2.6.tgz',
     'scala'      : 'http://www.scala-lang.org/files/archive/scala-2.10.4.tgz',    
     'jdk'        : 'jdk-8u60-linux-x64.tar.gz',
-    'maven'      : 'http://download.nextag.com/apache/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz',
+    'maven'      : 'http://apache.mirrors.lucidnetworks.net/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz',
     'mongodb'    : 'https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-rhel70-3.0.6.tgz',
     'node'       : 'https://nodejs.org/dist/v0.12.7/node-v0.12.7-linux-x64.tar.gz',
     'hadoop'     : 'http://apache.arvixe.com/hadoop/common/hadoop-2.6.0/hadoop-2.6.0.tar.gz',
@@ -85,9 +99,10 @@ dist_map = {
 base_apps = {
     'python-virtualenv' : 'python-virtualenv',
     'git-'              : 'git',
-    'emacs-'            : 'emacs'
+    'emacs-24'          : 'emacs'
 }
 
+# Git repositories
 evry_app_git_uri = "https://github.com/stevencox/evry.git"
 orchestration_app_git_uri = "https://github.com/stevencox/orchestration.git"
 
@@ -107,6 +122,18 @@ def execute_op (mode, install, clean):
         installed = False
     return installed
 
+# File permissions
+
+''' Make a directory owned by the env user '''
+def mkdir_mine (d):
+    sudo ('mkdir -p %s' % d)
+    sudo ('chown %s %s' % (env.user, d))
+
+''' Make a file owned by the env user '''
+def mkfile_mine (f):
+    sudo ('touch %s' % f)
+    sudo ('chown %s %s' % (env.user, f))
+    
 # Tar
 
 ''' Untar a file and create a symbolic link called current to the extracted folder '''
@@ -230,8 +257,6 @@ def web (mode="install"):
 ''' Configure head nodes '''        
 @hosts(head_nodes)
 def head (mode="install"):
-    '''
-    '''
     install_mesosphere_repo (mode)
     base (mode)
     zoo (mode)
@@ -270,9 +295,21 @@ clientPort=2181
         run ('gem uninstall --quiet --executables marathon_client')
         firewall (mode)
         orchestra (mode)
-
     return execute_op (mode, install, clean)
 
+def mesos(mode="install"):
+    def install ():
+        yum_instal (mode, "mesos-", "mesos")
+        sudo ('rm -rf /etc/mesos-master/quorum.rpm*')
+        sudo ('echo 2 > /etc/mesos-master/quorum')
+        sudo ('chown -R %s /var/log/mesos' % env.user)
+        sudo ('chown -R %s /var/lib/mesos' % env.user)
+        configure_service (mode, 'mesos-master')
+    def clean ():
+        configure_service (mode, 'mesos-master')
+        sudo ('rm -rf /etc/mesos-master/quorum')
+    return execute_op (mode, install, clean)
+        
 ''' Configure head node systemD services '''
 def services (mode="install"):
     def install ():
@@ -289,29 +326,35 @@ def services (mode="install"):
     configure_service (mode, 'mesos-master')
     configure_service (mode, 'marathon')
     configure_service (mode, 'chronos')
-    configure_service (mode, 'orchestration')
 
     return execute_op (mode, install, clean)
 
 ''' Configure orchestration server '''
+@parallel
 @hosts(head_nodes)
 def orchestra (mode="install"):
     def install ():
-        sudo ('mkdir -p /opt/app')
-        sudo ('chown %s /opt/app' % env.user)
-        sudo ('mkdir -p /var/log/orchestration')
-        sudo ('chown %s /var/log/orchestration' % env.user)
+        mkdir_mine ('/opt/app')
+        mkdir_mine ('/var/log/orchestration')
+        mkfile_mine ('/etc/haproxy/haproxy.auto.cfg')
         with cd (opt):
             sudo ('rm -rf orchestration')
             run ('git clone --quiet %s' % orchestration_app_git_uri)
         with cd (orchestration):
             run ('cp %s/orchestration/local_config.json %s/etc' % (conf, orchestration))
             sudo ('cp %s/orchestration/orchestration.service /usr/lib/systemd/system' % conf)
+        sudo ('service haproxy stop')
+        configure_service (mode, 'orchestration')
     def clean ():
+        configure_service (mode, 'orchestration')
+        configure_service (mode, 'haproxy')
+        sudo ('rm -rf /var/log/orchestration')
         sudo ('rm -rf /opt/app/orchestration')
     return execute_op (mode, install, clean)
 
 ''' Configure head node firewall ''' 
+@parallel
+@hosts(head_nodes)
 def firewall (mode="install"):
     def install ():
         sudo ('if [ ! -f /etc/sysconfig/iptables.orig ]; then cp /etc/sysconfig/iptables /etc/sysconfig/iptables.orig; fi')
@@ -329,29 +372,17 @@ def firewall (mode="install"):
 @hosts(worker_nodes)
 def work (mode="install"):
     install_mesosphere_repo (mode)
+    # Needed by evry app
+    yum_install (mode, 'postgresql-devel', 'postgresql-devel')
     base (mode)
     def install ():
-#        sudo ('cp %s/mesos/mesos-slave.service /usr/lib/systemd/system' % conf)
-#        sudo ('chown -R evryscope /var/log/mesos/')
-#        sudo ('chown -R evryscope /tmp/mesos')
         sudo ("systemctl enable mesos-slave")
         sudo ("service mesos-slave restart")
         sudo ("service mesos-slave status")
         sudo ('service iptables stop')
-
-        # Install evryscope web app
-        app = '/var/www/app'
-        logdir = '/var/log/uwsgi'
-        sudo ('mkdir -p %s' % app)
-        sudo ('chown %s %s' % (env.user, app))
-        sudo ('mkdir -p /var/log/uwsgi')
-        sudo ('chown %s %s' % (env.user, logdir))
-        with cd (app):
-            run ('git clone %s' % evry_app_git_uri)
-            run ('virtualenv venv')
-            run ('source venv/bin/activate')
-            run ('pip install uwsgi flask')
-
+        # Support application installation
+        sudo ('mkdir -p %s' % opt)
+        sudo ('chown %s %s' % (env.user, opt))
     def clean ():
         with settings(warn_only=True):
             sudo ('service iptables start')
@@ -370,19 +401,25 @@ def base (mode="install"):
         for app in base_apps:
             yum_install (mode, app, base_apps[app])
         # Deploy standard bashrc to all worker nodes (controlling user environment).
-        sudo ('cp %s/evryscope.bashrc /home/evryscope/.bashrc' % conf)
+        sudo ('cp %s/%s.bashrc /home/%s/.bashrc' % (conf, env.user, env.user))
         # Deploy zookeeper configuration (identifying quorum hosts) to all nodes.
         addr = local ("ping -c 1 %s | awk 'NR==1{gsub(/\(|\)/,\"\",$3);print $3}'" % zookeeper_nodes, capture=True)
         print "zookeeper hosts: %s" % addr
         text = "%s:2181" % addr
-        sudo ('sh -c "echo zk://%s/mesos > /etc/mesos/zk" ' % text)
+        sudo ('sh -c "if [ -d /etc/mesos ]; then echo zk://%s/mesos > /etc/mesos/zk; fi" ' % text)
     def clean ():
         sudo ('rm -rf /etc/mesos/zk')
         for app in base_apps:
             yum_install (mode, app, base_apps[app])
     return execute_op (mode, install, clean)
 
+@parallel
+@hosts(worker_nodes)
+def killevry (mode="install"):
+    sudo ('pkill -f /projects/stars/app/evry/bin/app')
+
 ''' Configure zookeeper cluster '''
+@parallel
 @hosts(zookeeper_nodes)
 def zoo (mode="install"):
     yum_install (mode, 'mesosphere-zookeeper', 'mesosphere-zookeeper')
@@ -392,7 +429,6 @@ def zoo (mode="install"):
 @parallel
 @hosts(zookeeper_nodes)
 def core (mode="install"):
-    run('hostname -f')
     run('mkdir -p %s' % dist)
     run('mkdir -p %s' % stack)
     run('mkdir -p %s' % app)
@@ -404,11 +440,16 @@ def core (mode="install"):
         deploy_tar     (mode, 'jdk')
         deploy_uri_tar (mode, 'maven')
         deploy_uri_tar (mode, 'scala')
-        deploy_uri_tar (mode, 'spark')
+        spark (mode)
         deploy_uri_tar (mode, 'node')
         deploy_uri_tar (mode, 'mongodb')
         deploy_uri_tar (mode, 'hadoop')
         deploy_uri_tar (mode, 'tachyon')
+
+@hosts(zookeeper_nodes)
+def spark (mode="install"):
+    deploy_uri_tar (mode, 'spark')
+    run ('cp %s/spark/spark-env.sh %s/spark/current/conf' % (conf, stack))
 
 @hosts(db_nodes)
 def db (mode="install"):

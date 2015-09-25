@@ -4,9 +4,9 @@ After=network.target
 Wants=network.target
 
 [Service]
-User=evryscope
+#User=evryscope
 EnvironmentFile=-/etc/sysconfig/marathon
-ExecStart=/usr/bin/marathon
+ExecStart=/usr/bin/marathon --event_subscriber http_callback --http_endpoints http://stars-c0.edc.renci.org:3030/marathon
 Restart=always
 RestartSec=20
 
