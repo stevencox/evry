@@ -4,7 +4,7 @@ After=network.target
 Wants=network.target
 
 [Service]
-User=evryscope
+Environment="IP=${IPADDR}"
 ExecStart=/usr/bin/mesos-init-wrapper master
 Restart=always
 RestartSec=20

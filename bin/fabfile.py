@@ -297,6 +297,8 @@ clientPort=2181
         orchestra (mode)
     return execute_op (mode, install, clean)
 
+@parallel
+@hosts(head_nodes)
 def mesos(mode="install"):
     def install ():
         yum_instal (mode, "mesos-", "mesos")
@@ -309,13 +311,33 @@ def mesos(mode="install"):
         configure_service (mode, 'mesos-master')
         sudo ('rm -rf /etc/mesos-master/quorum')
     return execute_op (mode, install, clean)
-        
+
+@parallel
+@hosts(head_nodes)
+def head_restart ():
+    services = [ 'orchestration', 'chronos', 'marathon', 'mesos-master', 'zookeeper' ]
+    map (lambda s : sudo ('service %s stop' % s), services)
+    map (lambda s : sudo ('service %s start' % s), reversed (services))
+    '''
+    sudo ('service orchestration stop')
+    sudo ('service chronos stop')
+    sudo ('service marathon stop')
+    sudo ('service mesos-master stop')
+    sudo ('service zookeeper stop')
+
+    sudo ('service zookeeper start')
+    sudo ('service mesos-master start')
+    sudo ('service marathon start')
+    sudo ('service chronos start')
+    sudo ('service orchestration start')
+    '''
+
 ''' Configure head node systemD services '''
 def services (mode="install"):
     def install ():
         pass
-#        sudo ('cp %s/mesos/mesos-master.service /usr/lib/systemd/system/' % conf)
-#        sudo ('cp %s/marathon/marathon.service  /usr/lib/systemd/system/' % conf)
+        sudo ('cp %s/mesos/mesos-master.service /usr/lib/systemd/system/' % conf)
+        sudo ('cp %s/marathon/marathon.service  /usr/lib/systemd/system/' % conf)
 #        sudo ('cp %s/chronos/chronos.service    /usr/lib/systemd/system/' % conf)
     def clean ():
         sudo ('rm -f /usr/lib/systemd/system/mesos-master.service')
