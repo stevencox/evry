@@ -4,7 +4,7 @@
         "stars-c1.edc.renci.org:8080"
     ],
     "services" : {
-        "env" : {
+        "evry" : {
             "port"         : 5000,
             "backend_port" : 5000
         }

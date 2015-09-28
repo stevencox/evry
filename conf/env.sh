@@ -4,6 +4,7 @@ STARS_HOME=/projects/stars
 STARS_VENV=$STARS_HOME/venv
 STARS_APP=$STARS_HOME/app
 STARS_STACK=$STARS_HOME/stack
+STARS_DATA=$STARS_HOME/var
 
 if [[ ! -f $STARS_VENV/bin/activate ]]; then
     echo creating stars virtual env

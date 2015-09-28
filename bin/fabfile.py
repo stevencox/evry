@@ -205,7 +205,7 @@ def yum_install (mode, query, package):
     def install ():
         sudo (get_yum_command () % (query, package))
     def clean ():
-        sudo (get_yum_command(sudo=False, install=False) % (query, package))
+        sudo (get_yum_command(install=False) % (query, package))
     return execute_op (mode, install, clean)
 
 # SystemD
@@ -424,6 +424,7 @@ def base (mode="install"):
             yum_install (mode, app, base_apps[app])
         # Deploy standard bashrc to all worker nodes (controlling user environment).
         sudo ('cp %s/%s.bashrc /home/%s/.bashrc' % (conf, env.user, env.user))
+        sudo ('if [ "$(grep -c stars ~/.bashrc)" -eq 0 ]; then echo source %s/env.sh >> ~/.bashrc; fi' % conf)
         # Deploy zookeeper configuration (identifying quorum hosts) to all nodes.
         addr = local ("ping -c 1 %s | awk 'NR==1{gsub(/\(|\)/,\"\",$3);print $3}'" % zookeeper_nodes, capture=True)
         print "zookeeper hosts: %s" % addr
@@ -438,15 +439,23 @@ def base (mode="install"):
 @parallel
 @hosts(worker_nodes)
 def killevry (mode="install"):
+
     sudo ('pkill -f /projects/stars/app/evry/bin/app')
 
 ''' Configure zookeeper cluster '''
 @parallel
 @hosts(zookeeper_nodes)
 def zoo (mode="install"):
-    yum_install (mode, 'mesosphere-zookeeper', 'mesosphere-zookeeper')
-    configure_service (mode, 'zookeeper')
-
+    def install ():
+        yum_install (mode, 'mesosphere-zookeeper', 'mesosphere-zookeeper')
+        configure_service (mode, 'zookeeper')
+    def clean ():
+        configure_service (mode, 'zookeeper')
+        yum_install (mode, 'mesosphere-zookeeper', 'mesosphere-zookeeper')
+        sudo ('rm -rf /var/lib/zookeeper')
+        sudo ('rm -rf /var/log/zookeeper')
+    return execute_op (mode, install, clean)
+        
 ''' Configure general tools underlying the cluster '''
 @parallel
 @hosts(zookeeper_nodes)
@@ -478,6 +487,8 @@ def db (mode="install"):
     def install ():
         sudo ('cp %s/iptables.db /etc/sysconfig/iptables')
         sudo ('service iptables restart')
+
+        sudo ('rm -rf /usr/lib/pgsql')
         yum_install (mode, 'postgresql-', 'postgresql')
         yum_install (mode, 'postgresql-server', 'postgresql-server')
         yum_install (mode, 'postgresql-devel', 'postgresql-devel')
@@ -490,6 +501,7 @@ def db (mode="install"):
             sudo ('make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config')
             sudo ('make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config install')
             sudo ('service postgresql restart')
+
     def clean ():
         configure_service (mode, 'postgresql')
         yum_install (mode, 'postgresql-', 'postgresql')

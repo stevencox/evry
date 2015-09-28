@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -x
+set -e
+
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+source $DIR/../conf/env.sh
+
+CHRONOS_REPO=$STARS_APP/chronos
+CHRONOS_URI=http://stars-chronos.renci.org/
+CHRONOS_BACKUP=$STARS_DATA/chronos
+
+mkdir -p $CHRONOS_BACKUP
+
+if [[ ! -d $CHRONOS_REPO ]]; then
+    cd $STARS_APP
+    git clone https://github.com/mesos/chronos.git
+fi
+
+cd $CHRONOS_BACKUP
+ruby $CHRONOS_REPO/bin/chronos-sync.rb -u $CHRONOS_URI -p $PWD -c
+
+exit 0
