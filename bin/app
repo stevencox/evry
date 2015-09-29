@@ -9,7 +9,6 @@ VENV=$APP_ROOT/venv
 
 vinit () {
     cd $ROOT
-    rm -rf evry
     if [ ! -d evry ]; then
 	git clone https://github.com/stevencox/evry.git
 	cd evry
