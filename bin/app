@@ -15,7 +15,6 @@ vinit () {
 	cd evry
 	virtualenv venv
 	source venv/bin/activate
-	pip install flask uwsgi psycopg2
 	deactivate
 	cd static
 	ln -s /projects/stars/var/tiles tiles
@@ -25,6 +24,9 @@ vinit () {
 vinit
 cd $APP_ROOT
 source $VENV/bin/activate
+
+pip install flask uwsgi psycopg2
+
 if [[ ! -z "$(pgrep app.py)" ]]; then
     pkill -f app.py
 fi

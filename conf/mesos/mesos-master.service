@@ -4,8 +4,8 @@ After=network.target
 Wants=network.target
 
 [Service]
-Environment="IP=${IPADDR}"
-ExecStart=/usr/bin/mesos-init-wrapper master
+EnvironmentFile=/etc/network-environment
+ExecStart=/usr/bin/mesos-init-wrapper master 
 Restart=always
 RestartSec=20
 LimitNOFILE=16384

@@ -215,7 +215,7 @@ def configure_service (mode, service):
     def install ():
         sudo ('systemctl enable %s' % service)
         sudo ('systemctl restart %s' % service)
-        run  ('sleep 3')
+        #run  ('sleep 3')
         sudo ('systemctl status %s' % service)
     def clean ():
         with settings(warn_only=True):
@@ -263,17 +263,17 @@ def head (mode="install"):
     package_map = {
         'haproxy-'             : 'haproxy',
         'emacs-'               : 'emacs',
-        'mesos-'               : 'mesos',
+#        'mesos-'               : 'mesos',
         'marathon-'            : 'marathon',
         'chronos-'             : 'chronos'
     }
     for key in package_map:
         yum_install (mode, key, package_map[key])
-    sudo ('rm -rf /etc/mesos-master/quorum.rpm*')
+#    sudo ('rm -rf /etc/mesos-master/quorum.rpm*')
 
     def install ():
-        sudo ('echo 2 > /etc/mesos-master/quorum')
-        sudo ('echo 1 > /var/lib/zookeeper/myid')
+#        sudo ('echo 2 > /etc/mesos-master/quorum')
+#        sudo ('echo 1 > /var/lib/zookeeper/myid')
         addr = local ("ping -c 1 %s | awk 'NR==1{gsub(/\(|\)/,\"\",$3);print $3}'" % zookeeper_nodes, capture=True)
         zoo_cfg = """
 server1.%s:2888:3888        
@@ -281,15 +281,18 @@ dataDir=/var/log/zookeeper
 clientPort=2181
 """ % addr
         sudo ('echo \"%s\" > /etc/zookeeper/conf/zoo.cfg' % zoo_cfg)
-        sudo ('chown -R %s /var/log/mesos' % env.user)
-        sudo ('chown -R %s /var/lib/mesos' % env.user)
+#        sudo ('chown -R %s /var/log/mesos' % env.user)
+#        sudo ('chown -R %s /var/lib/mesos' % env.user)
         run ('gem install marathon_client')
+        sudo ('sh -c "echo IP=$(hostname -I) > /etc/network-environment" ')
         firewall (mode)
         orchestra (mode)
+        mesos (mode)
         services (mode)
     def clean ():
         services (mode)
-        sudo ('rm -rf /etc/mesos-master/quorum')
+        mesos (mode)
+#        sudo ('rm -rf /etc/mesos-master/quorum')
         sudo ('rm -rf /var/lib/zookeeper')
         sudo ('rm -rf /etc/zookeeper')
         run ('gem uninstall --quiet --executables marathon_client')
@@ -301,15 +304,18 @@ clientPort=2181
 @hosts(head_nodes)
 def mesos(mode="install"):
     def install ():
-        yum_instal (mode, "mesos-", "mesos")
+        yum_install (mode, "mesos-", "mesos")
         sudo ('rm -rf /etc/mesos-master/quorum.rpm*')
         sudo ('echo 2 > /etc/mesos-master/quorum')
         sudo ('chown -R %s /var/log/mesos' % env.user)
         sudo ('chown -R %s /var/lib/mesos' % env.user)
+        sudo ('cp %s/mesos/mesos-master.service /usr/lib/systemd/system/' % conf)
         configure_service (mode, 'mesos-master')
     def clean ():
         configure_service (mode, 'mesos-master')
         sudo ('rm -rf /etc/mesos-master/quorum')
+        sudo ('rm -f /usr/lib/systemd/system/mesos-master.service')
+        yum_install (mode, "mesos-", "mesos")
     return execute_op (mode, install, clean)
 
 @parallel
@@ -318,29 +324,14 @@ def head_restart ():
     services = [ 'orchestration', 'chronos', 'marathon', 'mesos-master', 'zookeeper' ]
     map (lambda s : sudo ('service %s stop' % s), services)
     map (lambda s : sudo ('service %s start' % s), reversed (services))
-    '''
-    sudo ('service orchestration stop')
-    sudo ('service chronos stop')
-    sudo ('service marathon stop')
-    sudo ('service mesos-master stop')
-    sudo ('service zookeeper stop')
-
-    sudo ('service zookeeper start')
-    sudo ('service mesos-master start')
-    sudo ('service marathon start')
-    sudo ('service chronos start')
-    sudo ('service orchestration start')
-    '''
 
 ''' Configure head node systemD services '''
 def services (mode="install"):
     def install ():
         pass
-        sudo ('cp %s/mesos/mesos-master.service /usr/lib/systemd/system/' % conf)
         sudo ('cp %s/marathon/marathon.service  /usr/lib/systemd/system/' % conf)
 #        sudo ('cp %s/chronos/chronos.service    /usr/lib/systemd/system/' % conf)
     def clean ():
-        sudo ('rm -f /usr/lib/systemd/system/mesos-master.service')
         sudo ('rm -f /usr/lib/systemd/system/marathon.service')
         sudo ('rm -f /usr/lib/systemd/system/chronos/chronos.service')
         sudo ('rm -f /usr/lib/systemd/system/chronos/orchestration.service')
@@ -439,8 +430,8 @@ def base (mode="install"):
 @parallel
 @hosts(worker_nodes)
 def killevry (mode="install"):
-
-    sudo ('pkill -f /projects/stars/app/evry/bin/app')
+    sudo ('pgrep -a app.py')
+    #sudo ('pkill -f /projects/stars/app/evry/bin/app')
 
 ''' Configure zookeeper cluster '''
 @parallel
@@ -485,28 +476,41 @@ def spark (mode="install"):
 @hosts(db_nodes)
 def db (mode="install"):
     def install ():
-        sudo ('cp %s/iptables.db /etc/sysconfig/iptables')
+        sudo ('cp %s/db/iptables /etc/sysconfig/iptables' % conf)
         sudo ('service iptables restart')
 
         sudo ('rm -rf /usr/lib/pgsql')
         yum_install (mode, 'postgresql-', 'postgresql')
         yum_install (mode, 'postgresql-server', 'postgresql-server')
         yum_install (mode, 'postgresql-devel', 'postgresql-devel')
+
+        run ('wget --quiet --timestamping http://ftp.eenet.ee/pub/postgresql/projects/pgFoundry/pgsphere/pgsphere/1.1.1/pgsphere-1.1.1.tar.gz')
+        run ('tar xzf pgsphere-1.1.1.tar.gz')
+        with cd ('pgsphere-1.1.1'):
+            run ('make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config')
+            sudo ('make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config install')
+
+        sudo ('rm -rf /var/lib/pgsql/data/*')
         sudo ('postgresql-setup initdb')
+        sudo ('cp %s/db/postgresql.conf /var/lib/pgsql/data/postgresql.conf' % conf)
+        sudo ('cp %s/db/pg_hba.conf   /var/lib/pgsql/data/pg_hba.conf' % conf)
+
+        sudo ('pkill -f postgres')
+        sudo ('su - postgres -c "pg_resetxlog -f /var/lib/pgsql/data" ')
         configure_service (mode, 'postgresql')
 
-        run ('wget http://pgfoundry.org/frs/download.php/2558/pgsphere-1.1.1.tar.gz')
-        run ('tar xvzf pgsphere-1.1.1.tar.gz')
-        with cd ('pgsphere-1.1.1'):
-            sudo ('make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config')
-            sudo ('make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config install')
-            sudo ('service postgresql restart')
+        sudo ('su - postgres -c "psql < %s/evry/db/evryscope.init.sql"' % app)
+        sudo ('su - postgres -c "psql evryscope < %s/evry/db/evryscope.schema"' % app)
+        sudo ("su - postgres -c \"psql evryscope -c '\\d light_curves' \" ")
+        sudo ("su - postgres -c \"psql evryscope -c '\\d images' \" ")
 
     def clean ():
         configure_service (mode, 'postgresql')
         yum_install (mode, 'postgresql-', 'postgresql')
         yum_install (mode, 'postgresql-server', 'postgresql-server')
         yum_install (mode, 'postgresql-devel', 'postgresql-devel')
+        sudo ('rm -rf /var/lib/pgsql')
+
     return execute_op (mode, install, clean)
 
 ''' Configure astroinformatics stack '''
