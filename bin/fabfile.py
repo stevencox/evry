@@ -82,7 +82,6 @@ orchestration = "%s/orchestration" % opt
 
 # Third party libraries to install
 dist_map = {
-#    'spark'      : 'http://apache.arvixe.com//spark/spark-1.4.1/spark-1.4.1-bin-hadoop2.6.tgz',
     'spark'      : 'http://apache.arvixe.com/spark/spark-1.5.0/spark-1.5.0-bin-hadoop2.6.tgz',
     'scala'      : 'http://www.scala-lang.org/files/archive/scala-2.10.4.tgz',    
     'jdk'        : 'jdk-8u60-linux-x64.tar.gz',
@@ -178,7 +177,7 @@ def deploy_tar (mode, name):
 # Yum
 
 ''' Add the MesoSphere Repo '''
-def install_mesosphere_repo (mode="install"):
+def mesosphere_repo (mode="install"):
     def install ():
         mesosphere_repo='http://repos.mesosphere.com/el/7/noarch/RPMS/mesosphere-el-repo-7-1.noarch.rpm'
         sudo ('if [ -z "$( rpm -qa | grep mesosphere-el-repo )" ]; then yum install --assumeyes --quiet %s; fi' % mesosphere_repo)
@@ -215,7 +214,6 @@ def configure_service (mode, service):
     def install ():
         sudo ('systemctl enable %s' % service)
         sudo ('systemctl restart %s' % service)
-        #run  ('sleep 3')
         sudo ('systemctl status %s' % service)
     def clean ():
         with settings(warn_only=True):
@@ -239,6 +237,12 @@ def web (mode="install"):
         for app in base_apps:
             local (get_yum_command (sudo=True) % (app, base_apps[app]))
 
+        ''' Configure iptables '''
+        sudo ('if [ ! -f /etc/sysconfig/iptables.orig ]; then cp /etc/sysconfig/iptables /etc/sysconfig/iptables.orig; fi')
+        sudo ('cp %s/iptables.web /etc/sysconfig/iptables' % conf)
+        sudo ('service iptables restart')
+        sudo ('service iptables status')
+
         ''' Configure proxy '''
         local ('sudo cp %s/nginx/nginx.conf /etc/nginx' % conf)
         local ('sudo cp -r %s/nginx/conf.d /etc/nginx' % conf)
@@ -257,23 +261,10 @@ def web (mode="install"):
 ''' Configure head nodes '''        
 @hosts(head_nodes)
 def head (mode="install"):
-    install_mesosphere_repo (mode)
+    mesosphere_repo (mode)
     base (mode)
     zoo (mode)
-    package_map = {
-        'haproxy-'             : 'haproxy',
-        'emacs-'               : 'emacs',
-#        'mesos-'               : 'mesos',
-        'marathon-'            : 'marathon',
-        'chronos-'             : 'chronos'
-    }
-    for key in package_map:
-        yum_install (mode, key, package_map[key])
-#    sudo ('rm -rf /etc/mesos-master/quorum.rpm*')
-
     def install ():
-#        sudo ('echo 2 > /etc/mesos-master/quorum')
-#        sudo ('echo 1 > /var/lib/zookeeper/myid')
         addr = local ("ping -c 1 %s | awk 'NR==1{gsub(/\(|\)/,\"\",$3);print $3}'" % zookeeper_nodes, capture=True)
         zoo_cfg = """
 server1.%s:2888:3888        
@@ -281,23 +272,42 @@ dataDir=/var/log/zookeeper
 clientPort=2181
 """ % addr
         sudo ('echo \"%s\" > /etc/zookeeper/conf/zoo.cfg' % zoo_cfg)
-#        sudo ('chown -R %s /var/log/mesos' % env.user)
-#        sudo ('chown -R %s /var/lib/mesos' % env.user)
-        run ('gem install marathon_client')
         sudo ('sh -c "echo IP=$(hostname -I) > /etc/network-environment" ')
         firewall (mode)
-        orchestra (mode)
         mesos (mode)
-        services (mode)
+        marathon (mode)
+        chronos (mode)
+        orchestration (mode)
     def clean ():
-        services (mode)
+        orchestration (mode)
+        chronos (mode)
+        marathon (mode)
         mesos (mode)
-#        sudo ('rm -rf /etc/mesos-master/quorum')
+        firewall (mode)
         sudo ('rm -rf /var/lib/zookeeper')
         sudo ('rm -rf /etc/zookeeper')
+    return execute_op (mode, install, clean)
+
+@parallel
+@hosts(head_nodes)
+def marathon (mode="install"):
+    def install ():
+        yum_install (mode, "marathon-", "marathon")
+        run ('gem install marathon_client')
+    def clean ():
         run ('gem uninstall --quiet --executables marathon_client')
-        firewall (mode)
-        orchestra (mode)
+        yum_install (mode, "marathon-", "marathon")
+    return execute_op (mode, install, clean)
+        
+@parallel
+@hosts(head_nodes)
+def chronos (mode="install"):
+    def install ():
+        yum_install (mode, "chronos-", "chronos")
+        configure_service (mode, 'chronos')
+    def clean ():
+        configure_service (mode, 'chronos')
+        yum_install (mode, "chronos-", "chronos")
     return execute_op (mode, install, clean)
 
 @parallel
@@ -326,27 +336,26 @@ def head_restart ():
     map (lambda s : sudo ('service %s start' % s), reversed (services))
 
 ''' Configure head node systemD services '''
+@parallel
+@hosts(head_nodes)
 def services (mode="install"):
     def install ():
-        pass
         sudo ('cp %s/marathon/marathon.service  /usr/lib/systemd/system/' % conf)
-#        sudo ('cp %s/chronos/chronos.service    /usr/lib/systemd/system/' % conf)
     def clean ():
         sudo ('rm -f /usr/lib/systemd/system/marathon.service')
         sudo ('rm -f /usr/lib/systemd/system/chronos/chronos.service')
         sudo ('rm -f /usr/lib/systemd/system/chronos/orchestration.service')
-
     configure_service (mode, 'mesos-master')
     configure_service (mode, 'marathon')
     configure_service (mode, 'chronos')
-
     return execute_op (mode, install, clean)
 
 ''' Configure orchestration server '''
 @parallel
 @hosts(head_nodes)
-def orchestra (mode="install"):
+def orchestration (mode="install"):
     def install ():
+        yum_install (mode, 'haproxy-', 'haproxy')
         mkdir_mine ('/opt/app')
         mkdir_mine ('/var/log/orchestration')
         mkfile_mine ('/etc/haproxy/haproxy.auto.cfg')
@@ -361,6 +370,7 @@ def orchestra (mode="install"):
     def clean ():
         configure_service (mode, 'orchestration')
         configure_service (mode, 'haproxy')
+        yum_install (mode, 'haproxy-', 'haproxy')
         sudo ('rm -rf /var/log/orchestration')
         sudo ('rm -rf /opt/app/orchestration')
     return execute_op (mode, install, clean)
@@ -384,7 +394,7 @@ def firewall (mode="install"):
 @parallel
 @hosts(worker_nodes)
 def work (mode="install"):
-    install_mesosphere_repo (mode)
+    mesosphere_repo (mode)
     # Needed by evry app
     yum_install (mode, 'postgresql-devel', 'postgresql-devel')
     base (mode)

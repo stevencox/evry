@@ -10,14 +10,26 @@ CHRONOS_REPO=$STARS_APP/chronos
 CHRONOS_URI=http://stars-chronos.renci.org/
 CHRONOS_BACKUP=$STARS_DATA/chronos
 
-mkdir -p $CHRONOS_BACKUP
+MARATHON_REPO=$STARS_APP/marathon
 
+mkdir -p $CHRONOS_BACKUP
 if [[ ! -d $CHRONOS_REPO ]]; then
     cd $STARS_APP
     git clone https://github.com/mesos/chronos.git
 fi
-
 cd $CHRONOS_BACKUP
 ruby $CHRONOS_REPO/bin/chronos-sync.rb -u $CHRONOS_URI -p $PWD -c
+
+
+
+if [[ ! -d $MARATHON_REPO ]]; then
+    cd $STARS_APP
+    git clone https://github.com/mesosphere/marathon_client.git
+    cd marathon_client
+    gem build marathon_client.gemspec
+    gem install marathon_client-*.gem
+fi
+$STARS_APP/evry/bin/marathon
+
 
 exit 0
