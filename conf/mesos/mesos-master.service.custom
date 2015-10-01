@@ -1,0 +1,14 @@
+[Unit]
+Description=Mesos Master
+After=network.target
+Wants=network.target
+
+[Service]
+#EnvironmentFile=/etc/network-environment
+ExecStart=${EXE} --ip=${IP} --zk=${ZK} --work_dir=/home/cluster/mesos --log_dir=${LOGDIR} --logging_level=${LOGLEVEL} --quorum=${QUORUM}
+Restart=always
+RestartSec=20
+LimitNOFILE=16384
+
+[Install]
+WantedBy=multi-user.target

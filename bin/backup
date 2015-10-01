@@ -7,29 +7,59 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 source $DIR/../conf/env.sh
 
 CHRONOS_REPO=$STARS_APP/chronos
-CHRONOS_URI=http://stars-chronos.renci.org/
+CHRONOS_URI=http://localhost:4400 #http://stars-c0.edc.renci.org:4400 #https://stars-chronos.renci.org/
 CHRONOS_BACKUP=$STARS_DATA/chronos
 
 MARATHON_REPO=$STARS_APP/marathon
 
-mkdir -p $CHRONOS_BACKUP
-if [[ ! -d $CHRONOS_REPO ]]; then
-    cd $STARS_APP
-    git clone https://github.com/mesos/chronos.git
-fi
-cd $CHRONOS_BACKUP
-ruby $CHRONOS_REPO/bin/chronos-sync.rb -u $CHRONOS_URI -p $PWD -c
+chronos () {
+    mkdir -p $CHRONOS_BACKUP
+    if [[ ! -d $CHRONOS_REPO ]]; then
+	cd $STARS_APP
+	git clone https://github.com/mesos/chronos.git
+    fi
+    cd $CHRONOS_BACKUP
+    backup () {
+	ruby $CHRONOS_REPO/bin/chronos-sync.rb -u $CHRONOS_URI -p $PWD -c
+    }
+    restore () {
+	ruby $CHRONOS_REPO/bin/chronos-sync.rb -u $CHRONOS_URI -p $PWD --force
+    }
 
+    $*
+}
 
+marathon () {
+    restore () {
+	if [[ ! -d $MARATHON_REPO ]]; then
+	    cd $STARS_APP
+	    if [[ ! -d marathon_client ]]; then
+		git clone https://github.com/mesosphere/marathon_client.git
+		cd marathon_client
+		gem build marathon_client.gemspec
+		gem install marathon_client-*.gem
+	    fi
+	fi
+	~/bin/marathon kill --id evry
+	~/bin/marathon start \
+	    --id evry \
+	    --command "su - evryscope -c \"${STARS_HOME}/app/evry/bin/app\" " \
+	    --cpus 1 \
+	    --mem 512 \
+	    --num-instances 5
+    }
+    $*
+}
 
-if [[ ! -d $MARATHON_REPO ]]; then
-    cd $STARS_APP
-    git clone https://github.com/mesosphere/marathon_client.git
-    cd marathon_client
-    gem build marathon_client.gemspec
-    gem install marathon_client-*.gem
-fi
-$STARS_APP/evry/bin/marathon
+backup () {
+    chronos backup
+}
 
+restore () {
+    chronos restore
+    marathon restore
+}
+
+$*
 
 exit 0
