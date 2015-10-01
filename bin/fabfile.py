@@ -272,27 +272,19 @@ def head (mode="install"):
     base (mode)
     zoo (mode)
     def install ():
-        addr = local ("ping -c 1 %s | awk 'NR==1{gsub(/\(|\)/,\"\",$3);print $3}'" % zookeeper_nodes, capture=True)
-        zoo_cfg = """
-server1.%s:2888:3888        
-dataDir=/var/log/zookeeper
-clientPort=2181
-""" % addr
-        sudo ('echo \"%s\" > /etc/zookeeper/conf/zoo.cfg' % zoo_cfg)
         sudo ('sh -c "echo IP=$(hostname -I) > /etc/network-environment" ')
         firewall (mode)
         mesos (mode)
         marathon (mode)
         chronos (mode)
         orchestration (mode)
+        configure_mesos_services (mode)
     def clean ():
         orchestration (mode)
         chronos (mode)
         marathon (mode)
         mesos (mode)
         firewall (mode)
-        sudo ('rm -rf /var/lib/zookeeper')
-        sudo ('rm -rf /etc/zookeeper')
     return execute_op (mode, install, clean)
 
 @parallel
@@ -458,9 +450,7 @@ def firewall (mode="install"):
     def install ():
         sudo ('if [ ! -f /etc/sysconfig/iptables.orig ]; then cp /etc/sysconfig/iptables /etc/sysconfig/iptables.orig; fi')
         sudo ('cp %s/iptables.headnode /etc/sysconfig/iptables' % conf)
-#        sudo ('service iptables restart')
         sudo ('service iptables stop') # spark assigns random ports for driver/worker communication.
-#        sudo ('service iptables status')
     def clean ():
         sudo ('cp /etc/sysconfig/iptables.orig /etc/sysconfig/iptables')
         sudo ('service iptables stop')
@@ -569,12 +559,18 @@ def killevry (mode="install"):
 def zoo (mode="install"):
     def install ():
         yum_install (mode, 'mesosphere-zookeeper', 'mesosphere-zookeeper')
+        addr = socket.gethostbyname (head_nodes [0])
+        generate_config (template="%s/zoo.cfg" % conf,
+                         context={ 'IPADDR' : addr },
+                         output='/etc/zookeeper/conf/zoo.cfg',
+                         use_sudo=True)
         configure_service (mode, 'zookeeper')
     def clean ():
         configure_service (mode, 'zookeeper')
         yum_install (mode, 'mesosphere-zookeeper', 'mesosphere-zookeeper')
         sudo ('rm -rf /var/lib/zookeeper')
         sudo ('rm -rf /var/log/zookeeper')
+        sudo ('rm -rf /etc/zookeeper')
     return execute_op (mode, install, clean)
         
 ''' Configure general tools underlying the cluster '''
