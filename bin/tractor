@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -x
+#set -e
+
+cd /projects/stars/var/tractor
+
+for fits in ../../var/images/*.fits
+do
+    sex $fits;
+    if [ $# -gt 0 ]; then
+	echo $f >> error.log
+    fi
+done
+
+exit 0

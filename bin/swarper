@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -x
+set -e
+
+id
+
+source /projects/stars/app/evry/conf/env.sh
+
+cd /projects/stars/var/swarp
+rm -rf *
+swarp $(find $STARS_HOME/var -name "*fits" -print | head -200)
+
+exit 0

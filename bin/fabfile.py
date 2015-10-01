@@ -80,7 +80,7 @@ dist  = "%s/dist"  % root
 conf  = "%s/app/evry/conf" % root
 
 opt   = "/opt/app"
-orchestration = "%s/orchestration" % opt
+orchestration_path = "%s/orchestration" % opt
 
 # Third party libraries to install
 dist_map = {
@@ -296,6 +296,11 @@ clientPort=2181
     return execute_op (mode, install, clean)
 
 @parallel
+@hosts(head_nodes[0])
+def configure_mesos_services (mode="install"):
+    run ('%s/evry/bin/backup restore' % app)
+
+@parallel
 @hosts(head_nodes)
 def marathon (mode="install"):
     def install ():
@@ -363,7 +368,8 @@ def mesos_21_install (mode):
             with cd ('mesos'):
                 run ('tar xzf %s/mesos-renci-0.21.0.tar.gz' % dist)
                 with cd ('mesos-0.21.0'):
-                    sudo ('make install')
+                    sudo ('make install 2>&1 > mesos-install.log')
+        #sudo ('rm -rf %s/mesos/mesos-0.21.0/src/' % opt)
     def clean ():
         sudo ('rm -rf %/mesos' % opt)
     return execute_op (mode, install, clean)
@@ -432,8 +438,8 @@ def orchestration (mode="install"):
         with cd (opt):
             sudo ('rm -rf orchestration')
             run ('git clone --quiet %s' % orchestration_app_git_uri)
-        with cd (orchestration):
-            run ('cp %s/orchestration/local_config.json %s/etc' % (conf, orchestration))
+        with cd (orchestration_path):
+            run ('cp %s/orchestration/local_config.json %s/etc' % (conf, orchestration_path))
             sudo ('cp %s/orchestration/orchestration.service /usr/lib/systemd/system' % conf)
         sudo ('service haproxy stop')
         configure_service (mode, 'orchestration')
@@ -495,6 +501,8 @@ def work_24 (mode="install"):
 @parallel
 @hosts(worker_nodes)
 def work_21 (mode="install"):
+    sudo ('rm -rf /opt/app/mesos/mesos-0.21.0/src/')
+    sudo ('yum clean all')
     mesos_21_install (mode)
     mesosphere_repo (mode)
     # Needed by evry app

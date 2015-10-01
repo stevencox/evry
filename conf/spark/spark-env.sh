@@ -1,6 +1,4 @@
-0#!/usr/bin/bash
-
-# #!/usr/bin/env bash
+#!/usr/bin/env bash
 
 SPARK_LOCAL_IP=$(hostname -I | sed -e "s, ,,g")
 export LIBPROCESS_IP=${SPARK_LOCAL_IP}

@@ -8,9 +8,11 @@ source $DIR/../conf/env.sh
 
 CHRONOS_REPO=$STARS_APP/chronos
 CHRONOS_URI=http://localhost:4400 #http://stars-c0.edc.renci.org:4400 #https://stars-chronos.renci.org/
-CHRONOS_BACKUP=$STARS_DATA/chronos
+#CHRONOS_URI=http://stars-c0.edc.renci.org:4400
+CHRONOS_BACKUP=$STARS_APP/evry/conf/chronos/jobs
 
 MARATHON_REPO=$STARS_APP/marathon
+MARATHON_HOST=http://localhost:8080 #stars-c0.edc.renci.org:8080
 
 chronos () {
     mkdir -p $CHRONOS_BACKUP
@@ -34,19 +36,21 @@ marathon () {
 	if [[ ! -d $MARATHON_REPO ]]; then
 	    cd $STARS_APP
 	    if [[ ! -d marathon_client ]]; then
+		sudo yum install -y ruby-devel
 		git clone https://github.com/mesosphere/marathon_client.git
 		cd marathon_client
 		gem build marathon_client.gemspec
 		gem install marathon_client-*.gem
 	    fi
 	fi
-	~/bin/marathon kill --id evry
-	~/bin/marathon start \
-	    --id evry \
-	    --command "su - evryscope -c \"${STARS_HOME}/app/evry/bin/app\" " \
+	~/bin/marathon --marathon-host=$MARATHON_HOST kill --id evry
+	sleep 5
+	~/bin/marathon --marathon-host=$MARATHON_HOST \
+	    start --id evry \
+	    --command "su - evryscope -c \"${STARS_APP}/evry/bin/app\" " \
 	    --cpus 1 \
 	    --mem 512 \
-	    --num-instances 5
+	    --num-instances 4
     }
     $*
 }
