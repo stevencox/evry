@@ -1,0 +1,62 @@
+#!/bin/bash
+
+set -e
+set -x
+
+jenkins () {
+    install () {
+	sudo wget -e use_proxy=yes -e http_proxy=gateway.ad.renci.org:8080 -O /etc/yum.repos.d/jenkins.repo http://pkg.jenkins-ci.org/redhat/jenkins.repo
+	sudo rpm --httpproxy gateway.ad.renci.org --httpport 8080 --import https://jenkins-ci.org/redhat/jenkins-ci.org.key
+	sudo yum install --quiet --assumeyes jenkins
+    }
+    start () {
+	sudo service jenkins start
+    }
+    stop () {
+	sudo service jenkins stop
+    }
+    $*
+}
+
+cluster () {
+    # config ~/.config/ezmomi/config.yaml
+    
+    EZMOMI_HOME=/projects/stars/app/ezmomi
+    export PYTHONPATH=$EZMOMI_HOME:$PYTHONPATH
+    ezmomi=$EZMOMI_HOME/bin/ezmomi
+    
+    vcenter_host=vc.ad.renci.org
+    resource_pool="stars"
+    domain=edc.renci.org
+    template="Template CentOS 7 x86_64"
+    
+    setup () {
+	for c in $(seq 0 10); do
+	    host=stars-t$c
+	    IP=x
+	    $ezmomi clone \
+		--template "$template" \
+		--hostname $host \
+		--ips $IP \
+		--domain $domain \
+		--resource-pool $resource_pool
+	done
+    }
+
+    teardown () {
+	for c in $(seq 0 10); do
+	    $ezmomi destroy --name stars-t$c.$domain
+	done
+    }
+}
+
+fabtest () {
+    cluster setup
+    STARS_SITE=test
+    echo qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq: fab web base core head work db astro app test
+    cluster teardown
+}
+
+exit 0
+
+$*
