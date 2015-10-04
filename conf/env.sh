@@ -29,5 +29,7 @@ export PATH=$NODE_HOME/bin:$PATH
 MONGO_HOME=$STARS_STACK/mongodb/current
 export PATH=$MONGO_HOME/bin:$PATH
 
+export PATH=$STARS_HOME/app/stars/bin:$PATH
+
 cd $STARS_APP/evry
 

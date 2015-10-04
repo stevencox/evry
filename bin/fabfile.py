@@ -550,7 +550,7 @@ def base (mode="install"):
 @parallel
 @hosts(worker_nodes)
 def killevry (mode="install"):
-    sudo ('pgrep -a app.py')
+    sudo ('pgrep -a ssh')
     #sudo ('pkill -f /projects/stars/app/evry/bin/app')
 
 ''' Configure zookeeper cluster '''
