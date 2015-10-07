@@ -10,4 +10,5 @@ if [[ ! -f $VENV/bin/activate ]]; then
     virtualenv env
     source $VENV/bin/activate
 fi
+pip install --upgrade pip
 pip install --quiet fabric flask requests mock mockito psycopg2 pyyaml argparse
