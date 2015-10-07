@@ -12,7 +12,7 @@ if [[ ! -f $STARS_VENV/bin/activate ]]; then
     virtualenv venv
 fi
 source $STARS_VENV/bin/activate
-pip install --quiet fabric flask requests
+pip install --quiet fabric flask requests mock mockito psycopg2 pyyaml
 
 SPARK_HOME=$STARS_STACK/spark/current
 export PATH=$SPARK_HOME/bin:$PATH
