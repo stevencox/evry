@@ -1,49 +1,43 @@
+import argparse
+import glob
+import logging
+import pprint
+import psycopg2
+import psycopg2.extras
+import traceback
+import yaml
+
 from string import Template
 from flask import Flask, url_for, jsonify, request, make_response, g
 from flask import render_template
-import psycopg2
-import psycopg2.extras
-import pprint
-import logging
-import glob
-import traceback
-import yaml
 
 logger = logging.getLogger (__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
-
-def load_config ():
-    config = None
-    with open("conf/evry-dev.yaml", 'r') as stream:
-        config = yaml.load (stream)
-    return config
-
-config = load_config ()
-
-dbhost = config['dbhost']
-dbname = config['dbname']
-dbuser = config['dbuser']
-dbpassword = config['dbpass']
-image_location = config['image_location']
-
-logger.info ("Database host: {0}, dbname: {1}, user: {2}".format (dbhost, dbname, dbuser))
-
+config = None
 conn = None
+image_location = None
+
+def load_config (config):
+    result = None
+    with open(config, 'r') as stream:
+        result = yaml.load (stream)
+    return result
 
 def connect ():
     result = None
     if not result:
         try:
-            logger.info ("Connecting to host: {0} db: {1} as user: {2}"
-                         .format (dbhost, dbname, dbuser))
+            dbhost = config['dbhost']
+            dbname = config['dbname']
+            dbuser = config['dbuser']
+            dbpassword = config['dbpass']
             result = psycopg2.connect (host=dbhost,
                                        dbname=dbname,
                                        user=dbuser,
                                        password=dbpassword)
             logger.info ("Connection object: {0}".format (result))
-            logger.info ("Connected to host: {0} db: {1} as user: {2}".format (dbhost, dbname, dbuser))
         except Exception, e:
             logger.exception (e)
             traceback.print_exc ()
@@ -84,7 +78,6 @@ def login():
 
 @app.route('/fetchImages', methods=['GET', "POST"])
 def fetchImages ():
-
     prefix = request.args['prefix']
     images = request.args['images']
     images = images.split (',')
@@ -127,7 +120,19 @@ def listImages():
     })
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='Evryscope web app')
+    parser.add_argument('--config', action="store", dest="config", default='conf/evry-dev.yaml')
+    args = parser.parse_args ()
+    
+    config = load_config (args.config)
+
+    image_location = config['image_location']
+
     logging.basicConfig(level=logging.DEBUG)
+
+    logger.info ("Using configuration: {0}".format (args.config))
+
     conn = connect ()
     app.run(
         host="0.0.0.0",
