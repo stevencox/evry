@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e
-set -x
-
-echo post-receive hook running...
-curl https://stars.renci.org/git/notifyCommit?url=git@gitserver:stevencox/evry.git&branches=master
-
-exit 0
