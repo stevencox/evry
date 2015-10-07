@@ -1,5 +1,5 @@
 from string import Template
-from flask import Flask, url_for, jsonify, request, make_response
+from flask import Flask, url_for, jsonify, request, make_response, g
 from flask import render_template
 import psycopg2
 import psycopg2.extras
@@ -7,30 +7,52 @@ import pprint
 import logging
 import glob
 import traceback
+import yaml
 
 logger = logging.getLogger (__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 
-dbname="evryscope"
-dbuser="evryscope"
-dbhost="stars-db.edc.renci.org"
-dbpass="evryscope"
+def load_config ():
+    config = None
+    with open("conf/evry-dev.yaml", 'r') as stream:
+        config = yaml.load (stream)
+    return config
+
+config = load_config ()
+
+dbhost = config['dbhost']
+dbname = config['dbname']
+dbuser = config['dbuser']
+dbpassword = config['dbpass']
+image_location = config['image_location']
+
+logger.info ("Database host: {0}, dbname: {1}, user: {2}".format (dbhost, dbname, dbuser))
 
 conn = None
+
 def connect ():
-    try:
-        conn = psycopg2.connect (host=dbhost,
-                                 dbname=dbname,
-                                 user=dbuser,
-                                 password=dbpass)
-        logger.info ("Connected to host: {0} db: {1} as user: {2}"
-                     .format (dbhost, dbname, dbuser))
-    except Exception, e:
-        logger.exception (e)
-        traceback.print_exc ()
+    result = None
+    if not result:
+        try:
+            logger.info ("Connecting to host: {0} db: {1} as user: {2}"
+                         .format (dbhost, dbname, dbuser))
+            result = psycopg2.connect (host=dbhost,
+                                       dbname=dbname,
+                                       user=dbuser,
+                                       password=dbpassword)
+            logger.info ("Connection object: {0}".format (result))
+            logger.info ("Connected to host: {0} db: {1} as user: {2}".format (dbhost, dbname, dbuser))
+        except Exception, e:
+            logger.exception (e)
+            traceback.print_exc ()
+    return result
     
+@app.before_request
+def before_request():
+    g.conn = conn if conn else connect ()
+
 @app.route('/')
 def app_main ():
     return render_template('main.html')
@@ -95,14 +117,15 @@ get_file $file
 
 @app.route('/listImages', methods=['POST'])
 def listImages():
-    logger.info ("Listing images")    
-    return jsonify ({ 
-        "images" : [ x.split('/')[-1] for x in glob.glob('/projects/stars/var/tiles/img*calib') ]
+    logger.info ("Listing images")
+    return jsonify ({
+        "images" : [ x.split('/')[-1] for x in glob.glob('{0}/img*calib'.format (image_location)) ]
+        #"images" : [ x.split('/')[-1] for x in glob.glob('/projects/stars/var/tiles/img*calib') ]
     })
 
 if __name__ == '__main__':
-    connect ()
     logging.basicConfig(level=logging.DEBUG)
+    conn = connect ()
     app.run(
         host="0.0.0.0",
         port=int("5000"),

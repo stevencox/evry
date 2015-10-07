@@ -1,0 +1,6 @@
+dbname: evryscope
+dbuser: evryscope
+dbhost: localhost
+dbpass: evryscope
+
+image_location: ./static/tiles
