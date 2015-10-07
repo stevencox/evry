@@ -48,7 +48,10 @@ def connect ():
             logger.exception (e)
             traceback.print_exc ()
     return result
-    
+
+def get_image_file_list (image_location):
+    return glob.glob('{0}/img*calib'.format (image_location))
+
 @app.before_request
 def before_request():
     g.conn = conn if conn else connect ()
@@ -81,10 +84,12 @@ def login():
 
 @app.route('/fetchImages', methods=['GET', "POST"])
 def fetchImages ():
+
     prefix = request.args['prefix']
     images = request.args['images']
     images = images.split (',')
     url = request.url_root
+
     downloadScript = Template ("""
 #/bin/bash
 set -o
@@ -110,7 +115,6 @@ get_file $file
         "prefix" : prefix,
         "getCommands" : '\n'.join (commands)
     })
-
     response = make_response(data)
     response.headers["Content-Disposition"] = "attachment; filename=downloadScript.sh"
     return response
@@ -119,8 +123,7 @@ get_file $file
 def listImages():
     logger.info ("Listing images")
     return jsonify ({
-        "images" : [ x.split('/')[-1] for x in glob.glob('{0}/img*calib'.format (image_location)) ]
-        #"images" : [ x.split('/')[-1] for x in glob.glob('/projects/stars/var/tiles/img*calib') ]
+        "images" : [ x.split('/')[-1] for x in get_image_file_list (image_location) ]
     })
 
 if __name__ == '__main__':
@@ -131,50 +134,3 @@ if __name__ == '__main__':
         port=int("5000"),
         debug=True
     )
-
-
-
-
-
-'''
-(evry)[scox@mac~/dev/evry]$ psql --username=evryscope
-psql (9.3.4, server 9.4.0)
-WARNING: psql major version 9.3, server major version 9.4.
-         Some psql features might not work.
-Type "help" for help.
-
-evryscope=> create table light_curves ( id integer, curve int[][] ); 
-CREATE TABLE
-evryscope=> create table images ( id integer, path varchar(255) ); 
-CREATE TABLE
-
-
-evryscope=> insert into light_curves values (0, [ [0, 1, 2] ]);
-ERROR:  syntax error at or near "["
-LINE 1: insert into light_curves values (0, [ [0, 1, 2] ]);
-                                            ^
-evryscope=> insert into light_curves values (0, '{ { 0, 1, 2 } }');
-INSERT 0 1
-evryscope=> select * from light_curves;
- id |   curve   
-----+-----------
-  0 | {{0,1,2}}
-(1 row)
-
-
-
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO evryscope;
-
-
-
-
-
-FITS to SVG
-http://aplpy.readthedocs.org/en/stable/howto_noninteractive.html
-
-Polymaps SVG Tiler
-http://polymaps.org/
-
-http://www.dimin.net/software/panojs/#Demos
-
-'''
