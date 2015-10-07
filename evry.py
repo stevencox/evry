@@ -58,7 +58,7 @@ def before_request():
 
 @app.route('/')
 def app_main ():
-    return render_template('main.html')
+    return render_template('main.html') 
 
 @app.route('/query', methods=['POST'])
 def login():
