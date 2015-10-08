@@ -11,7 +11,9 @@ import cc.factorie.variable.{
   CategoricalVectorDomain, CategoricalDomain, CategoricalVariable }
 import cc.factorie.infer.InferByBPChain
 import cc.factorie.infer.BP
+import scala.xml.XML
 
+// http://factorie.cs.umass.edu/usersguide/UsersGuide460Learning.html
 object Evry extends App {
   implicit val random = new scala.util.Random(0)
 
@@ -23,21 +25,31 @@ object Evry extends App {
     c.index(feature.toString)
   }
 
-object LabelDomain extends CategoricalDomain[String]
+  object LabelDomain extends CategoricalDomain[String]
+
   class Label(val token: Token, s: String) extends LabeledCategoricalVariable(s) {
     def domain = LabelDomain
   }
+
   object FeaturesDomain extends CategoricalVectorDomain[String]
   class Features(val token: Token) extends BinaryFeatureVectorVariable[String] {
     def domain = FeaturesDomain
   }
+
   object model extends ChainModel[Label, Features, Token](
     LabelDomain,
     FeaturesDomain,
     l => l.token.attr[Features],
     l => l.token,
     t => t.attr[Label])
-  val document = new Document("The quick brown fox jumped over the lazy dog.")
+
+  val xml = XML.loadFile("/projects/stars/var/wikipedia/enwiki-small.xml")
+  val text = (xml \\ "mediawiki" \\ "page" \ "text").text
+  println (s" text: [$text]")
+
+  // https://www.metacademy.org/roadmaps/rgrosse/bayesian_machine_learning
+  //val document = new Document("The quick brown fox jumped over the lazy dog.")
+  val document = new Document(text)
   DeterministicTokenizer.process(document)
   DeterministicSentenceSegmenter.process(document)
   document.tokens.foreach(t => t.attr += new Label(t, "A"))
@@ -49,7 +61,7 @@ object LabelDomain extends CategoricalDomain[String]
   })
   val example = new optimize.LikelihoodExample(document.tokens.toSeq.map(_.attr[Label]), model, InferByBPChain)
 
-  Trainer.batchTrain(model.parameters, Seq(example), nThreads = 2)
+  Trainer.batchTrain(model.parameters, Seq(example), nThreads = 4)
 
   import cc.factorie.util.CmdOptions
   object opts extends CmdOptions {
@@ -69,6 +81,7 @@ object LabelDomain extends CategoricalDomain[String]
   val optimizeArgs = hyp.optimize()
   assertStringEquals(optimizeArgs.length, "2")
 
+  System.exit (0)
 }
 
 

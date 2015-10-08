@@ -3,6 +3,7 @@ from fabric.api import execute
 from fabric.api import hosts
 from fabric.api import parallel
 from fabric.api import run
+from fabric.api import settings
 from fabric.api import sudo
 from fabric.api import task
 import stars_util as su
@@ -75,5 +76,11 @@ def configure_mesos_services (mode="install"):
 def all (mode="install"):
     execute (db,    mode=mode,  hosts=env.work_nodes)
     execute (astro, mode=mode,  hosts=env.work_nodes)
-    
 
+@task
+@parallel
+@hosts(env.work_nodes)
+def status ():
+    with settings(warn_only=True):
+        run ('ps -ef | grep -v grep | grep python | grep app.py | grep venv')
+ 
