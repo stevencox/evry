@@ -1,0 +1,6 @@
+dbname: evryscope
+dbuser: evryscope
+dbhost: stars-db.edc.renci.org
+dbpass:
+
+image_location: /projects/stars/var/tiles
