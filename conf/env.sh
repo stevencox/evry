@@ -10,9 +10,11 @@ if [[ ! -f $STARS_VENV/bin/activate ]]; then
     echo creating stars virtual env
     cd $STARS_HOME
     virtualenv venv
+    source $STARS_VENV/bin/activate
+    wget https://bootstrap.pypa.io/ez_setup.py -O - | python
 fi
 source $STARS_VENV/bin/activate
-pip install --quiet fabric flask requests mock mockito psycopg2 pyyaml
+pip install fabric flask requests mock mockito psycopg2 pyyaml
 
 SPARK_HOME=$STARS_STACK/spark/current
 export PATH=$SPARK_HOME/bin:$PATH
