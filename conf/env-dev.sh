@@ -11,5 +11,5 @@ if [[ ! -f $VENV/bin/activate ]]; then
     source $VENV/bin/activate
     wget https://bootstrap.pypa.io/ez_setup.py -O - | python
 fi
-pip install --upgrade pip
+source $VENV/bin/activate
 pip install --quiet fabric flask requests mock mockito psycopg2 pyyaml argparse
