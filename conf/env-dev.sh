@@ -10,7 +10,8 @@ if [[ ! -f $VENV/bin/activate ]]; then
     virtualenv env
     source $VENV/bin/activate
     wget https://bootstrap.pypa.io/ez_setup.py -O - | python
+    deactivate
 fi
 source $VENV/bin/activate
 #pip install --quiet fabric flask requests mock mockito psycopg2 pyyaml argparse
-pip install fabric flask requests mock mockito psycopg2 pyyaml argparse
+pip install fabric flask requests mock mockito-without-hardcoded-distribute-version psycopg2 pyyaml argparse
