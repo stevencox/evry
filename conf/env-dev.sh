@@ -12,4 +12,5 @@ if [[ ! -f $VENV/bin/activate ]]; then
     wget https://bootstrap.pypa.io/ez_setup.py -O - | python
 fi
 source $VENV/bin/activate
-pip install --quiet fabric flask requests mock mockito psycopg2 pyyaml argparse
+#pip install --quiet fabric flask requests mock mockito psycopg2 pyyaml argparse
+pip install fabric flask requests mock mockito psycopg2 pyyaml argparse
