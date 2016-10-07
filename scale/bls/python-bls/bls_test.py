@@ -3,7 +3,7 @@ import numpy as np
 import batman
 import astropy.units as u
 from astropy.constants import G, R_sun, M_sun, R_jup, M_jup
-import time as time_mod
+import time
 
 params = batman.TransitParams() # object to store the transit parameters
 params.t0 = 1.0 # time of inferior conjunction 
@@ -62,8 +62,8 @@ qms = [
 
 for q in reversed (qms):
     qma, qmi = q
-    start = time_mod.time ()
+    start = time.time ()
     results = bls.eebls(time, flux, u, v, nf, fmin, df, nb, qmi, qma)
-    elapsed = time_mod.time () - start
+    elapsed = time.time () - start
     print "qmi=>{0} qma=>{1} time=>{2} results=>{3}".format (qmi, qma, elapsed, results)
 

@@ -1,14 +1,12 @@
-appnope==0.1.0
 astropy==1.2.1
 backports-abc==0.4
 backports.shutil-get-terminal-size==1.0.0
+numpy==1.11.1
 batman-package==2.1.0
-bls==0.0.1
 certifi==2016.8.31
 cycler==0.10.0
 decorator==4.0.10
 enum34==1.1.6
-functools32==3.2.3.post2
 gnureadline==6.3.3
 ipython==3.2.1
 ipython-genutils==0.1.0
@@ -16,8 +14,6 @@ Jinja2==2.8
 jsonschema==2.5.1
 MarkupSafe==0.23
 matplotlib==1.5.3
-nufftpy===0.1-git
-numpy==1.11.1
 pathlib2==2.1.0
 pbr==1.10.0
 pexpect==4.2.1

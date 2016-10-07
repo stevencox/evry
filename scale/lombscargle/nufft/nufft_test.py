@@ -3,7 +3,6 @@ import numba
 from nufftpy import nufft1
 import numpy as np
 
-
 @numba.jit(nopython=True)
 def build_grid_fast(x, c, tau, Msp, ftau, E3):
     Mr = ftau.shape[0]
@@ -64,10 +63,18 @@ def nufft_numba_fast(x, c, M, df=1.0, eps=1E-15, iflag=1):
     k = nufftfreqs(M)
     return (1 / N) * np.sqrt(np.pi / tau) * np.exp(tau * k ** 2) * Ftau
 
-Mrange = (2 ** np.arange(3, 18)).astype(int)
-for M in Mrange:
-#    print "M=>{0}".format (M)
-    x = 100 * np.random.random(M)
-    c = np.sin(x)
-    nufft_numba_fast(x, c, M)
+#Mrange = (2 ** np.arange(3, 18)).astype(int)
 
+minimum_frequency=1 / 1024
+maximum_frequency=1 / 0.00138889
+grid_sizes = [0.0013, 0.001953125, 0.00390625, 0.0078125, 0.015625, 0.03125, 0.0625, 0.125, 0.25, 0.5,1,2]
+for grid_size in grid_sizes:
+    nbins = (maximum_frequency-minimum_frequency) / grid_size
+    Mrange = np.linspace(minimum_frequency, maximum_frequency, nbins)
+    Mrange = (2 ** np.arange(3, 18)).astype(int)
+    for M in Mrange:
+        x = 100 * np.random.random(M)
+        c = np.sin(x)
+        nufft_numba_fast(x, c, M)
+
+#    print "M=>{0}".format (M)
