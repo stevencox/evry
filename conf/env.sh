@@ -13,8 +13,11 @@ if [[ ! -f $STARS_VENV/bin/activate ]]; then
     source $STARS_VENV/bin/activate
     wget https://bootstrap.pypa.io/ez_setup.py -O - | python
 fi
+
 source $STARS_VENV/bin/activate
-pip install fabric flask requests mock mockito psycopg2 pyyaml
+#pip install --quiet fabric flask requests mock mockito psycopg2 pyyaml
+
+#export PYSPARK_PYTHON=$(which python)
 
 SPARK_HOME=$STARS_STACK/spark/current
 export PATH=$SPARK_HOME/bin:$PATH
@@ -33,9 +36,20 @@ export PATH=$MONGO_HOME/bin:$PATH
 
 export PATH=$STARS_HOME/app/stars/bin:$PATH
 
-HADOOP_HOME=$STARS_STACK/hadoop/current
-export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
-export PATH=$HADOOP_HOME/bin:$PATH
+#HADOOP_HOME=$STARS_STACK/hadoop/current
+#export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+#export PATH=$HADOOP_HOME/bin:$PATH
 
-cd $STARS_APP/evry
+#cd $STARS_APP/evry
 
+
+
+export HADOOP_PREFIX=/opt/hadoop
+export HADOOP_HOME=$HADOOP_PREFIX
+export HADOOP_COMMON_HOME=$HADOOP_PREFIX
+export HADOOP_CONF_DIR=$HADOOP_PREFIX/etc/hadoop
+export HADOOP_HDFS_HOME=$HADOOP_PREFIX
+export HADOOP_MAPRED_HOME=$HADOOP_PREFIX
+export HADOOP_YARN_HOME=$HADOOP_PREFIX
+export PATH=$PATH:$HADOOP_PREFIX/sbin:$HADOOP_PREFIX/bin
+export HADOOP_NAMENODE_OPTS="$HADOOP_NAMENODE_OPTS -Xms10G -Xmx10G -XX:+UseParNewGC -XX:+UseConcMarkSweepGC"

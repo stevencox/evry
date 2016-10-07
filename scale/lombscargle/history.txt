@@ -1,0 +1,24 @@
+
+ 1125  wget http://llvm.org/releases/3.8.1/llvm-3.8.1.src.tar.xz
+ 1126  tar xzvf llvm-3.8.1.src.tar.xz 
+ 1129  xz -d llvm-3.8.1.src.tar.xz 
+ 1132  tar xf llvm-3.8.1.src.tar 
+ 1136  sudo yum install -y cmake
+ 1137  cmake llvm-3.8.1.src
+
+ 1142  mkdir cmake
+ 1143  cd cmake/
+ 1144  wget https://cmake.org/files/v3.7/cmake-3.7.0-rc1.tar.gz
+ 1145  tar xvzf cmake-3.7.0-rc1.tar.gz 
+ 1146  cd cmake-3.7.0-rc1
+ 1147  ./bootstrap 
+ 1148  make
+ 1150  cd llvm/llvm-3.8.1.src
+ 1153  ../../cmake/cmake-3.7.0-rc1/bin/cmake llvm-3.8.1.src
+ 1154  cmake --build .
+ 1156  cmake -DCMAKE_INSTALL_PREFIX=/projects/stars/app/evry/scale/lombscargle/llvmlite/llvm_home -P cmake_install.cmake
+ 1157  export LLVM_CONFIG=/projects/stars/app/evry/scale/lombscargle/llvmlite/llvm_home/bin/llvm-config
+
+ 1235  git clone git@github.com:jakevdp/nufftpy.git
+ 1236  cd nufftpy/
+ 1237  python setup.py install

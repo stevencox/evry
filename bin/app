@@ -26,9 +26,13 @@ source $VENV/bin/activate
 
 pip install flask uwsgi psycopg2
 
-if [[ ! -z "$(pgrep app.py)" ]]; then
-    pkill -f app.py
-fi
+#if [[ ! -z "$(pgrep app.py)" ]]; then
+#    pkill -f app.py
+#fi
+#ps -ef | grep app.py | grep -v grep | awk '{ print $2 }' | xargs kill -9
+
+export PORT=$PORT0
+
 python ./app.py
 
 exit 0
