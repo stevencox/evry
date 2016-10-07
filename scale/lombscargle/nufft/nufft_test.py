@@ -3,6 +3,7 @@ import numba
 from nufftpy import nufft1
 import numpy as np
 
+
 @numba.jit(nopython=True)
 def build_grid_fast(x, c, tau, Msp, ftau, E3):
     Mr = ftau.shape[0]
