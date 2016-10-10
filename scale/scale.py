@@ -314,6 +314,7 @@ def nufft_numba_fast(x, c, M, df=1.0, eps=1E-15, iflag=1):
     return (1 / N) * np.sqrt(np.pi / tau) * np.exp(tau * k ** 2) * Ftau
 
 def test_nufft ():
+    #https://jakevdp.github.io/blog/2015/02/24/optimizing-python-with-numpy-and-numba/
     #Mrange = (2 ** np.arange(3, 18)).astype(int)
     minimum_frequency=1 / 1024
     maximum_frequency=1 / 0.00138889
