@@ -13,10 +13,10 @@ logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 
-dbname="evryscope"
-dbuser="evryscope"
+dbname="---------"
+dbuser="---------"
 dbhost="stars-db.edc.renci.org"
-dbpass="evryscope"
+dbpass="---------"
 
 conn = None
 def connect ():
